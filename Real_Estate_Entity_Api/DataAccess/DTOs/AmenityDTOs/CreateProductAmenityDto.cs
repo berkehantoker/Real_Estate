@@ -1,0 +1,14 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace DataAccess.DTOs.AmenityDTOs
+{
+    public class CreateProductAmenityDto
+    {
+        public int ProductId { get; set; }
+        public List<int> AmenityIds { get; set; } 
+    }
+}

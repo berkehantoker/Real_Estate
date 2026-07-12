@@ -1,0 +1,16 @@
+/* Tailwind v4'ün yeni içe aktarma kodu budur */
+@import "tailwindcss";
+
+/* v4'te derleme hatası almamak için @apply yerine 
+   doğrudan renklerin Hex kodlarını kullanıyoruz 
+*/
+@layer base {
+  body {
+    background-color: #f9fafb; /* bg-gray-50 eşdeğeri */
+    color: #111827; /* text-gray-900 eşdeğeri */
+  }
+
+  input, textarea, select {
+    color: #111827 !important;
+  }
+}

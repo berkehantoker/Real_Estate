@@ -1,0 +1,11 @@
+# Next.js (Frontend) için engellenecekler
+real-estate-ui/node_modules/
+real-estate-ui/.next/
+real-estate-ui/out/
+real-estate-ui/.env*.local
+
+# ASP.NET Core (Backend) için engellenecekler
+Real_Estate_Entity_Api/bin/
+Real_Estate_Entity_Api/obj/
+Real_Estate_Entity_Api/appsettings.Development.json
+Real_Estate_Entity_Api/.vs/

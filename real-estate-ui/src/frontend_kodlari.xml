@@ -1,0 +1,2399 @@
+This file is a merged representation of a subset of the codebase, containing files not matching ignore patterns, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching these patterns are excluded: node_modules/**, .next/**, out/**, dist/**, build/**, .git/**, public/**, *.lock, package-lock.json, yarn.lock
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+app/(panel)/layout.tsx
+app/(panel)/panel/ilan-duzenle/[id]/page.tsx
+app/(panel)/panel/ilan-ekle/page.tsx
+app/(panel)/panel/ilanlarim/page.tsx
+app/(panel)/panel/page.tsx
+app/(public)/ilan/[id]/page.tsx
+app/(public)/ilanlar/page.tsx
+app/(public)/layout.tsx
+app/(public)/login/page.tsx
+app/(public)/page.tsx
+app/(public)/register/page.tsx
+app/favicon.ico
+app/globals.css
+app/layout.tsx
+components/FeaturedProducts.tsx
+components/Hero.tsx
+components/Navbar.tsx
+components/ProductCard.tsx
+components/Sidebar.tsx
+constants/cities.ts
+proxy.ts
+services/authService.ts
+services/categoryService.ts
+services/productService.ts
+store/useAuthStore.ts
+utils/axiosInstance.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="app/(panel)/layout.tsx">
+import Sidebar from '@/components/Sidebar';
+
+export default function PanelLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-screen bg-gray-50 font-sans">
+      
+      {/* Sol Menü (Sidebar) */}
+      <Sidebar />
+
+      {/* Sağ Ana İçerik Alanı */}
+      <main className="flex-1 flex flex-col overflow-hidden">
+        
+        {/* Üst Bilgi Çubuğu (Top Bar) */}
+        <header className="h-16 bg-white shadow-sm border-b border-gray-200 flex items-center px-8">
+          <h1 className="text-xl font-semibold text-gray-800">Kontrol Paneli</h1>
+        </header>
+
+        {/* Sayfaların içeriğinin geleceği asıl yer */}
+        <div className="flex-1 overflow-auto p-8">
+          {children}
+        </div>
+      </main>
+
+    </div>
+  );
+}
+</file>
+
+<file path="app/(panel)/panel/ilan-duzenle/[id]/page.tsx">
+"use client";
+
+import { useState, useEffect, useRef } from 'react';
+import { useRouter, useParams } from 'next/navigation';
+import { useAuthStore } from '../../../../../store/useAuthStore';
+import { getAllCategoriesAPI } from '../../../../../services/categoryService';
+import { getProductWithDetailsAPI, updateProductAPI, uploadImageAPI, updateProductAmenitiesAPI } from '../../../../../services/productService';
+import { FiSave, FiArrowLeft, FiImage } from 'react-icons/fi';
+import Link from 'next/link';
+import React from 'react';
+
+// Sabit Özellikler Listesi (Veritabanındaki ID'lerle birebir aynı olmalı)
+const AMENITIES_LIST = [
+  { id: 1, name: "Havuz" },
+  { id: 2, name: "Otopark" },
+  { id: 3, name: "Asansör" },
+  { id: 4, name: "7/24 Güvenlik" },
+  { id: 5, name: "Balkon" },
+  { id: 6, name: "Klima" },
+  { id: 7, name: "Yerden Isıtma" },
+  { id: 8, name: "Spor Salonu" }
+];
+
+export default function EditProductPage() {
+  const router = useRouter();
+  const params = useParams(); 
+  const { user } = useAuthStore();
+  
+  const [categories, setCategories] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Güncelleme Formu State'i (amenities dizisi eklendi)
+  const [formData, setFormData] = useState({
+    productId: 0,
+    title: '',
+    price: '',
+    city: '',
+    district: '',
+    description: '',
+    type: 'Satılık',
+    categoryId: '',
+    coverImage: '',
+    appUserId: 0,
+    amenities: [] as number[] // Backend'den gelen işaretli ID'leri tutacak
+  });
+
+  const [newCoverImage, setNewCoverImage] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const cats = await getAllCategoriesAPI();
+        setCategories(cats);
+
+        const productId = Number(params.id);
+        const productData = await getProductWithDetailsAPI(productId);
+        
+        setFormData({
+          productId: productId,
+          title: productData.title,
+          price: productData.price.toString(),
+          city: productData.city,
+          district: productData.district,
+          description: productData.description,
+          type: productData.type || 'Satılık',
+          categoryId: productData.categoryId || cats[0]?.categoryId || '', 
+          coverImage: productData.coverImage,
+          appUserId: Number(user?.id),
+          // Backend'den gelen eski özellik ID'lerini State'e basıyoruz
+          amenities: productData.amenityIds || [] 
+        });
+
+        setCoverPreview(productData.coverImage);
+
+      } catch (error) {
+        console.error("Veriler çekilirken hata:", error);
+        alert("İlan bilgileri yüklenemedi!");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (params.id) {
+      fetchData();
+    }
+  }, [params.id, user]);
+
+  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setNewCoverImage(file);
+      setCoverPreview(URL.createObjectURL(file)); 
+    }
+  };
+
+  const handleUpdate = async () => {
+    setIsSubmitting(true);
+    try {
+      let finalCoverImage = formData.coverImage;
+
+      // Yeni resim seçildiyse yükle
+      if (newCoverImage) {
+        const coverRes = await uploadImageAPI(newCoverImage);
+        finalCoverImage = `https://localhost:7252${coverRes.url || coverRes.Url}`;
+      }
+
+      // 1. Ana İlan Detaylarını Güncelle
+      const updateDto = {
+        productId: formData.productId,
+        title: formData.title,
+        price: Number(formData.price),
+        city: formData.city,
+        district: formData.district,
+        description: formData.description,
+        type: formData.type,
+        categoryId: Number(formData.categoryId),
+        coverImage: finalCoverImage,
+        appUserId: formData.appUserId
+      };
+
+      await updateProductAPI(updateDto);
+
+      // 2. Özellikleri (Amenities) Güncelle
+      await updateProductAmenitiesAPI({
+        productId: formData.productId,
+        amenityIds: formData.amenities
+      });
+
+      alert("İlan başarıyla güncellendi!");
+      router.push('/panel/ilanlarim');
+
+    } catch (error) {
+      console.error(error);
+      alert("İlan güncellenirken bir hata oluştu.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
+    return <div className="p-10 text-center animate-pulse text-gray-500 font-medium">İlan bilgileri yükleniyor...</div>;
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto pb-20">
+      
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h2 className="text-3xl font-extrabold text-gray-800">İlanı Düzenle</h2>
+          <p className="text-gray-500 mt-1">İlan bilgilerini, kapak resmini ve ev özelliklerini buradan güncelleyebilirsiniz.</p>
+        </div>
+        <Link href="/panel/ilanlarim" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 font-medium bg-gray-100 px-4 py-2 rounded-xl transition-colors">
+          <FiArrowLeft /> İlanlarıma Dön
+        </Link>
+      </div>
+
+      <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 space-y-6">
+        
+        <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">İlan Başlığı</label>
+            <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none" />
+          </div>
+          
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Açıklama</label>
+            <textarea rows={3} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none" />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">İlan Tipi</label>
+            <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none">
+              <option value="Satılık">Satılık</option>
+              <option value="Kiralık">Kiralık</option>
+              <option value="Günlük Kiralık">Günlük Kiralık</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Kategori</label>
+            <select value={formData.categoryId} onChange={e => setFormData({...formData, categoryId: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none">
+              {categories.map((cat: any) => (<option key={cat.categoryId || cat.id} value={cat.categoryId || cat.id}>{cat.name || cat.categoryName}</option>))}
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Fiyat (₺)</label>
+            <input type="number" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none" />
+          </div>
+          
+          <div>
+             <label className="block text-sm font-medium text-gray-700 mb-2">Şehir & İlçe</label>
+             <div className="flex gap-2">
+                <input type="text" value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} className="w-1/2 px-4 py-3 bg-gray-50 border rounded-xl outline-none" placeholder="Şehir" />
+                <input type="text" value={formData.district} onChange={e => setFormData({...formData, district: e.target.value})} className="w-1/2 px-4 py-3 bg-gray-50 border rounded-xl outline-none" placeholder="İlçe" />
+             </div>
+          </div>
+        </div>
+
+        {/* --- ÖZELLİKLER (AMENITIES) BÖLÜMÜ EKLENDİ --- */}
+        <div className="pt-6 border-t border-gray-100">
+          <label className="block text-sm font-bold text-gray-800 mb-4">Ev Özellikleri (Amenities)</label>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {AMENITIES_LIST.map((amenity) => (
+              <label key={amenity.id} className="flex items-center gap-2 cursor-pointer group">
+                <input 
+                  type="checkbox" 
+                  checked={formData.amenities.includes(amenity.id)}
+                  onChange={() => {
+                    const hasIt = formData.amenities.includes(amenity.id);
+                    setFormData({
+                      ...formData,
+                      amenities: hasIt 
+                        ? formData.amenities.filter(id => id !== amenity.id) 
+                        : [...formData.amenities, amenity.id]
+                    });
+                  }}
+                  className="w-5 h-5 border-gray-300 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                />
+                <span className="text-gray-700 group-hover:text-blue-600 font-medium transition-colors">{amenity.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* --- KAPAK RESMİ --- */}
+        <div className="pt-6 border-t border-gray-100">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Kapak Resmi</label>
+            <div 
+              onClick={() => coverInputRef.current?.click()} 
+              className="w-full h-56 border-2 border-dashed border-gray-300 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 hover:border-blue-400 transition-all overflow-hidden relative"
+            >
+              <input type="file" ref={coverInputRef} accept="image/*" onChange={handleCoverChange} className="hidden" />
+              
+              {coverPreview ? (
+                <>
+                  <img src={coverPreview} alt="Kapak Önizleme" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                    <p className="text-white font-bold flex items-center gap-2"><FiImage /> Resmi Değiştir</p>
+                  </div>
+                </>
+              ) : (
+                 <div className="text-center text-gray-500">Resim Yok</div>
+              )}
+            </div>
+        </div>
+
+        <div className="flex justify-end pt-6">
+          <button 
+            onClick={handleUpdate} 
+            disabled={isSubmitting} 
+            className="flex items-center gap-2 bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-md transition-all disabled:opacity-50"
+          >
+            {isSubmitting ? 'Güncelleniyor...' : <><FiSave /> Değişiklikleri Kaydet</>}
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="app/(panel)/panel/ilan-ekle/page.tsx">
+"use client";
+
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import { getAllCategoriesAPI } from '@/services/categoryService';
+import { 
+  createProductDraftAPI, addProductDetailAPI, uploadImageAPI, 
+  updateProductAPI, addProductImagesAPI, publishProductAPI, 
+  getProductAmenitiesAPI, updateProductAmenityAPI 
+} from '@/services/productService';
+import { FiCheckCircle, FiChevronRight, FiChevronLeft, FiUploadCloud, FiImage } from 'react-icons/fi';
+
+export default function AddProductWizard() {
+  const router = useRouter();
+  const [step, setStep] = useState(1);
+  const [categories, setCategories] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingText, setLoadingText] = useState('');
+
+  // 1. ADIM: TEMEL BİLGİLER
+  const [basicInfo, setBasicInfo] = useState({
+    title: '', price: '', city: '', district: '', description: '', type: 'Satılık', categoryId: ''
+  });
+
+  // 2. ADIM: DETAYLAR
+  const [details, setDetails] = useState({
+    size: '', roomCount: '', bedroomCount: '', bathCount: '', videoUrl: ''
+  });
+
+  // 3. ADIM: GELİŞMİŞ DOSYA YÜKLEME
+  const [coverImage, setCoverImage] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null); // 🌟 Önizleme için
+  
+  const [galleryImages, setGalleryImages] = useState<File[]>([]);
+  
+  // Gizli inputları tetiklemek için ref'ler
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  // 4. ADIM: AMENITIES
+  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
+  const amenityList = ["Otopark", "Havuz", "Güvenlik", "Asansör", "Balkon", "Wifi", "Klima", "Spor Salonu"];
+
+  useEffect(() => {
+    getAllCategoriesAPI().then(data => setCategories(data)).catch(() => {});
+  }, []);
+
+  // 🌟 RESİM SEÇİLDİĞİNDE ÖNİZLEME OLUŞTURAN FONKSİYON
+  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setCoverImage(file);
+      setCoverPreview(URL.createObjectURL(file)); // Anında tarayıcıda göster
+    }
+  };
+
+  const handleSubmit = async () => {
+    // ... (Önceki handleSubmit kodunun TAMAMI aynı kalacak, hiçbir mantığı elleme)
+    setIsSubmitting(true);
+    try {
+      setLoadingText('İlan taslağı oluşturuluyor...');
+      const draftRes = await createProductDraftAPI({
+        ...basicInfo, price: Number(basicInfo.price), categoryId: Number(basicInfo.categoryId)
+      });
+      const pId = draftRes.productId || draftRes.ProductId;
+
+      setLoadingText('İlan detayları ekleniyor...');
+      await addProductDetailAPI({
+        productId: pId,
+        size: Number(details.size), roomCount: Number(details.roomCount),
+        bedroomCount: Number(details.bedroomCount), bathCount: Number(details.bathCount),
+        videoUrl: details.videoUrl
+      });
+
+      let uploadedCoverUrl = "default-draft.png";
+      if (coverImage) {
+        setLoadingText('Kapak resmi sunucuya yükleniyor...');
+        const coverRes = await uploadImageAPI(coverImage);
+        
+        // 🌟 RESİM URL'SİNİ BACKEND ADRESİYLE BİRLEŞTİRİYORUZ Kİ KIRIK GÖRÜNMESİN!
+        // (Eğer backend portun farklıysa buradaki 7252'yi kendi portunla değiştir)
+        uploadedCoverUrl = `https://localhost:7252${coverRes.url || coverRes.Url}`;
+        
+        await updateProductAPI({
+           productId: pId, ...basicInfo, price: Number(basicInfo.price), categoryId: Number(basicInfo.categoryId), coverImage: uploadedCoverUrl
+        });
+      }
+
+      if (galleryImages.length > 0) {
+        const uploadedGalleryUrls = [];
+        for (let i = 0; i < galleryImages.length; i++) {
+          setLoadingText(`Galeri resimleri yükleniyor (${i + 1}/${galleryImages.length})...`);
+          const galRes = await uploadImageAPI(galleryImages[i]);
+          uploadedGalleryUrls.push(`https://localhost:7252${galRes.url || galRes.Url}`); // 🌟 Absolute URL
+        }
+        await addProductImagesAPI({ productId: pId, imageUrls: uploadedGalleryUrls });
+      }
+
+      setLoadingText('Özellikler ayarlanıyor...');
+      const productAmenities = await getProductAmenitiesAPI(pId);
+      for (const pa of productAmenities) {
+         const title = pa.amenityTitle || pa.AmenityTitle;
+         if (selectedAmenities.includes(title)) {
+              await updateProductAmenityAPI({ productAmenityId: pa.productAmenityId || pa.ProductAmenityId, status: true });
+         }
+      }
+
+      setLoadingText('İlanınız yayına alınıyor!');
+      await publishProductAPI(pId);
+
+      router.push('/panel/ilanlarim');
+
+    } catch (error) {
+      console.error(error);
+      alert('İlan kaydedilirken bir hata oluştu.');
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto pb-20">
+      <div className="mb-8">
+        <h2 className="text-3xl font-extrabold text-gray-800">İlan Ekleme Sihirbazı</h2>
+        <p className="text-gray-500 mt-1">İlanınızı, resimlerinizi ve ev özelliklerinizi adım adım sisteme yükleyin.</p>
+      </div>
+
+      <div className="flex items-center justify-between mb-8 relative">
+        <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-full h-1 bg-gray-200 z-0"></div>
+        <div className={`absolute left-0 top-1/2 transform -translate-y-1/2 h-1 bg-blue-600 z-0 transition-all duration-500`} style={{ width: `${((step - 1) / 3) * 100}%` }}></div>
+        {[1, 2, 3, 4].map((num) => (
+          <div key={num} className={`relative z-10 flex items-center justify-center w-10 h-10 rounded-full font-bold transition-colors duration-500 ${step >= num ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}>{num}</div>
+        ))}
+      </div>
+
+      <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 min-h-[400px]">
+        
+        {step === 1 && (
+          <div className="space-y-6 animate-fadeIn">
+            <h3 className="text-xl font-bold text-gray-800 border-b pb-2">1. Temel Bilgiler</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-2">İlan Başlığı</label><input type="text" value={basicInfo.title} onChange={e => setBasicInfo({...basicInfo, title: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none" /></div>
+              <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-2">Açıklama</label><textarea rows={3} value={basicInfo.description} onChange={e => setBasicInfo({...basicInfo, description: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none" /></div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">İlan Tipi</label>
+                <select value={basicInfo.type} onChange={e => setBasicInfo({...basicInfo, type: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none">
+                  <option value="Satılık">Satılık</option>
+                  <option value="Kiralık">Kiralık</option>
+                  <option value="Günlük Kiralık">Günlük Kiralık</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Kategori (Mülk Tipi)</label>
+                <select value={basicInfo.categoryId} onChange={e => setBasicInfo({...basicInfo, categoryId: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none">
+                  <option value="">Seçiniz</option>
+                  {categories.map((cat: any) => (<option key={cat.categoryId || cat.id} value={cat.categoryId || cat.id}>{cat.name || cat.categoryName}</option>))}
+                </select>
+              </div>
+              
+              <div><label className="block text-sm font-medium text-gray-700 mb-2">Fiyat (₺)</label><input type="number" value={basicInfo.price} onChange={e => setBasicInfo({...basicInfo, price: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-2">Şehir</label><input type="text" value={basicInfo.city} onChange={e => setBasicInfo({...basicInfo, city: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none" /></div>
+              <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-2">İlçe</label><input type="text" value={basicInfo.district} onChange={e => setBasicInfo({...basicInfo, district: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none" /></div>
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="space-y-6 animate-fadeIn">
+            <h3 className="text-xl font-bold text-gray-800 border-b pb-2">2. Detaylı Ev Bilgileri</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div><label className="block text-sm font-medium text-gray-700 mb-2">Büyüklük (m²)</label><input type="number" value={details.size} onChange={e => setDetails({...details, size: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-2">Oda Sayısı</label><input type="number" value={details.roomCount} onChange={e => setDetails({...details, roomCount: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-2">Yatak Odası</label><input type="number" value={details.bedroomCount} onChange={e => setDetails({...details, bedroomCount: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-2">Banyo Sayısı</label><input type="number" value={details.bathCount} onChange={e => setDetails({...details, bathCount: e.target.value})} className="w-full px-4 py-3 bg-gray-50 border rounded-xl outline-none" /></div>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="space-y-6 animate-fadeIn">
+            <h3 className="text-xl font-bold text-gray-800 border-b pb-2">3. Görseller</h3>
+            
+            {/* 🌟 YENİ HARİKA KAPAK RESMİ ALANI */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Kapak Resmi</label>
+              <div 
+                onClick={() => coverInputRef.current?.click()} 
+                className="w-full h-48 border-2 border-dashed border-gray-300 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 hover:border-blue-400 transition-all overflow-hidden relative"
+              >
+                {/* Gerçek gizli input */}
+                <input type="file" ref={coverInputRef} accept="image/*" onChange={handleCoverChange} className="hidden" />
+                
+                {coverPreview ? (
+                  <>
+                    <img src={coverPreview} alt="Kapak Önizleme" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                      <p className="text-white font-bold flex items-center gap-2"><FiImage /> Resmi Değiştir</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <FiUploadCloud className="text-4xl text-blue-500 mb-2" />
+                    <p className="font-bold text-gray-700">Kapak Resmi Seçmek İçin Tıklayın</p>
+                    <p className="text-xs text-gray-400 mt-1">PNG, JPG veya WEBP (Max. 5MB)</p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* 🌟 YENİ ÇOKLU GALERİ ALANI */}
+            <div>
+               <label className="block text-sm font-medium text-gray-700 mb-2 mt-4">Galeri Resimleri (Çoklu Seçim)</label>
+               <div 
+                  onClick={() => galleryInputRef.current?.click()}
+                  className="w-full p-6 border-2 border-dashed border-gray-300 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 hover:border-blue-400 transition-all"
+               >
+                 <input type="file" ref={galleryInputRef} multiple accept="image/*" onChange={(e) => setGalleryImages(Array.from(e.target.files || []))} className="hidden" />
+                 
+                 <FiImage className="text-3xl text-gray-400 mb-2" />
+                 {galleryImages.length > 0 ? (
+                    <p className="font-bold text-blue-600">{galleryImages.length} adet resim seçildi. Değiştirmek için tıklayın.</p>
+                 ) : (
+                    <p className="font-bold text-gray-700">Çoklu resim seçmek için tıklayın</p>
+                 )}
+               </div>
+            </div>
+
+          </div>
+        )}
+
+        {step === 4 && (
+          <div className="space-y-6 animate-fadeIn">
+            <h3 className="text-xl font-bold text-gray-800 border-b pb-2">4. Mülk Özellikleri (Amenities)</h3>
+            <p className="text-sm text-gray-500 mb-4">Bu evde hangi özellikler bulunuyor? Seçtiğiniz özellikler ilan filtrelemesinde kullanılacaktır.</p>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {amenityList.map(amenity => (
+                <label key={amenity} className="flex items-center gap-3 p-3 border rounded-xl cursor-pointer hover:bg-blue-50 transition-colors">
+                  <input type="checkbox" className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500" 
+                    onChange={(e) => {
+                      if (e.target.checked) setSelectedAmenities([...selectedAmenities, amenity]);
+                      else setSelectedAmenities(selectedAmenities.filter(a => a !== amenity));
+                    }}
+                  />
+                  <span className="font-medium text-gray-700">{amenity}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {isSubmitting && (
+          <div className="absolute inset-0 bg-white/90 z-50 flex flex-col items-center justify-center rounded-2xl">
+            <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-xl font-bold text-gray-800">{loadingText}</p>
+          </div>
+        )}
+
+        <div className="flex justify-between mt-10 pt-6 border-t border-gray-100">
+          <button onClick={() => setStep(step - 1)} disabled={step === 1 || isSubmitting} className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all ${step === 1 ? 'opacity-0 cursor-default' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+            <FiChevronLeft /> Geri
+          </button>
+          
+          {step < 4 ? (
+            <button onClick={() => setStep(step + 1)} className="flex items-center gap-2 bg-blue-600 text-white px-8 py-3 rounded-xl font-semibold hover:bg-blue-700 shadow-md">
+              İleri <FiChevronRight />
+            </button>
+          ) : (
+            <button onClick={handleSubmit} disabled={isSubmitting} className="flex items-center gap-2 bg-green-600 text-white px-8 py-3 rounded-xl font-semibold hover:bg-green-700 shadow-md">
+              <FiCheckCircle /> Kaydet ve Yayınla
+            </button>
+          )}
+        </div>
+
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="app/(panel)/panel/ilanlarim/page.tsx">
+"use client";
+
+import { useEffect, useState } from 'react';
+import { useAuthStore } from '@/store/useAuthStore';
+import { getMyProductsAPI, deleteProductAPI } from '@/services/productService';
+import { FiEdit, FiTrash2, FiEye, FiPlus } from 'react-icons/fi';
+import Link from 'next/link';
+
+export default function MyProductsPage() {
+  const { user } = useAuthStore();
+  const [products, setProducts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Sayfa açıldığında ilanları çek
+  const fetchProducts = async () => {
+    if (!user?.id) return;
+    setIsLoading(true);
+    try {
+      const data = await getMyProductsAPI(Number(user.id));
+      
+      // Gelen verideki ID alanını standartlaştırıyoruz (Backend productId veya id dönüyor olabilir)
+      const formattedData = data.map((p: any) => ({ ...p, id: p.productId || p.id }));
+      setProducts(formattedData);
+    } catch (error) {
+      console.error("İlanlar çekilirken hata:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, [user]);
+
+  // Silme İşlemi
+  const handleDelete = async (id: number) => {
+    if (window.confirm('Bu ilanı kalıcı olarak silmek istediğinize emin misiniz?')) {
+      try {
+        await deleteProductAPI(id);
+        // Silme başarılıysa listeyi güncelle
+        setProducts(products.filter((p: any) => p.id !== id));
+      } catch (error) {
+        alert('İlan silinirken bir hata oluştu.');
+      }
+    }
+  };
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-6">
+      
+      {/* Üst Başlık ve Buton Alanı */}
+      <div className="flex items-center justify-between bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-800">İlanlarım</h2>
+          <p className="text-gray-500 text-sm mt-1">Sisteme yüklediğiniz tüm ilanları buradan yönetebilirsiniz.</p>
+        </div>
+        <Link href="/panel/ilan-ekle" className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl font-medium hover:bg-blue-700 transition-colors shadow-sm">
+          <FiPlus /> Yeni İlan
+        </Link>
+      </div>
+
+      {/* Veri Tablosu (Data Table) */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        {isLoading ? (
+          <div className="p-10 text-center text-gray-500 animate-pulse font-medium">İlanlarınız yükleniyor...</div>
+        ) : products.length === 0 ? (
+          <div className="p-16 text-center">
+            <div className="text-gray-400 mb-4 text-6xl flex justify-center"><FiEye /></div>
+            <h3 className="text-xl font-bold text-gray-700 mb-2">Henüz Hiç İlanınız Yok</h3>
+            <p className="text-gray-500 mb-6">Müşterilere sunmak için hemen yeni bir ilan oluşturun.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50 text-gray-600 text-sm uppercase tracking-wider border-b border-gray-100">
+                  <th className="p-4 font-semibold">Görsel</th>
+                  <th className="p-4 font-semibold">İlan Başlığı</th>
+                  <th className="p-4 font-semibold">Konum</th>
+                  <th className="p-4 font-semibold">Fiyat</th>
+                  <th className="p-4 font-semibold text-center">İşlemler</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {products.map((product: any) => (
+                  <tr key={product.id} className="hover:bg-gray-50 transition-colors group">
+                    <td className="p-4">
+                      <div className="w-16 h-16 rounded-lg bg-gray-200 overflow-hidden">
+                        <img src={product.coverImage || 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=200&q=80'} alt="Kapak" className="w-full h-full object-cover" />
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="font-bold text-gray-800 line-clamp-1" title={product.title}>{product.title}</div>
+                      <div className="text-xs text-blue-600 font-semibold mt-1 px-2 py-0.5 bg-blue-50 w-max rounded-md">{product.type}</div>
+                    </td>
+                    <td className="p-4 text-gray-600 text-sm">
+                      {product.city}, {product.district}
+                    </td>
+                    <td className="p-4 font-extrabold text-gray-900">
+                      {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(product.price)}
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Link href={`/panel/ilan-duzenle/${product.id}`} className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg transition-colors" title="Düzenle">
+                          <FiEdit />
+                        </Link>
+                        <button onClick={() => handleDelete(product.id)} className="p-2 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-colors" title="Sil">
+                          <FiTrash2 />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+    </div>
+  );
+}
+</file>
+
+<file path="app/(panel)/panel/page.tsx">
+"use client";
+import { useAuthStore } from "@/store/useAuthStore";
+
+export default function DashboardPage() {
+  const { user } = useAuthStore();
+
+  return (
+    <div className="space-y-6">
+      
+      <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold text-gray-800">Hoş Geldiniz, {user?.name}</h2>
+          <p className="text-gray-500 mt-2">
+            Sisteme <span className="font-semibold text-blue-600">{user?.role === 'Admin' ? 'Yönetici' : 'Emlak Danışmanı'}</span> yetkisiyle giriş yaptınız. Sol menüyü kullanarak işlemlerinizi gerçekleştirebilirsiniz.
+          </p>
+        </div>
+        
+        {/* Dekoratif bir istatistik veya görsel alanı */}
+        <div className="hidden md:block bg-blue-50 p-4 rounded-xl border border-blue-100">
+           <p className="text-blue-800 font-medium">Sistem Durumu: <span className="text-green-600 font-bold">Aktif</span></p>
+        </div>
+      </div>
+
+    </div>
+  );
+}
+</file>
+
+<file path="app/(public)/ilan/[id]/page.tsx">
+"use client";
+
+import { useEffect, useState, use } from 'react';
+import { getProductWithDetailsAPI } from '../../../../services/productService';
+import { FiMapPin, FiCheck, FiChevronLeft, FiChevronRight, FiX, FiShare2, FiHeart } from 'react-icons/fi';
+
+export default function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const [product, setProduct] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Galeri Yönetimi
+  const [activeImageIndex, setActiveImageIndex] = useState(0); 
+  const [lightboxOpen, setLightboxOpen] = useState(false);     
+
+  useEffect(() => {
+    const fetchProductDetails = async () => {
+      if (!id) return;
+      try {
+        const data = await getProductWithDetailsAPI(Number(id));
+        setProduct(data);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchProductDetails();
+  }, [id]);
+
+  // Klavye Desteği
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!lightboxOpen) return;
+      if (e.key === 'ArrowRight') handleNext();
+      if (e.key === 'ArrowLeft') handlePrev();
+      if (e.key === 'Escape') setLightboxOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxOpen, activeImageIndex, product]);
+
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center text-xl text-gray-500 font-medium">İlan detayları yükleniyor...</div>;
+  if (!product) return <div className="min-h-screen flex items-center justify-center text-xl text-red-500 font-bold">İlan bulunamadı!</div>;
+
+  const allImages = [product.coverImage, ...(product.imageUrls || [])].filter(Boolean);
+  const handleNext = () => setActiveImageIndex((prev) => (prev + 1) % allImages.length);
+  const handlePrev = () => setActiveImageIndex((prev) => (prev - 1 + allImages.length) % allImages.length);
+
+  return (
+    <div className="bg-gray-50 min-h-screen pb-20 pt-8">
+      
+      {/* --- TAM EKRAN LIGHTBOX (MODAL) --- */}
+      {lightboxOpen && (
+        <div className="fixed inset-0 z-[999] bg-black/95 flex items-center justify-center select-none">
+          <button onClick={() => setLightboxOpen(false)} className="absolute top-6 right-6 text-white/70 hover:text-white text-4xl z-50"><FiX /></button>
+          {allImages.length > 1 && (
+            <button onClick={(e) => { e.stopPropagation(); handlePrev(); }} className="absolute left-4 text-white hover:text-gray-300 text-5xl bg-black/50 rounded-full p-2 z-50"><FiChevronLeft /></button>
+          )}
+          <img src={allImages[activeImageIndex]} alt="Büyük Galeri" className="max-w-full max-h-[90vh] object-contain" />
+          {allImages.length > 1 && (
+            <button onClick={(e) => { e.stopPropagation(); handleNext(); }} className="absolute right-4 text-white hover:text-gray-300 text-5xl bg-black/50 rounded-full p-2 z-50"><FiChevronRight /></button>
+          )}
+          <div className="absolute bottom-6 text-white font-medium bg-black/60 px-6 py-2 rounded-full">
+            {activeImageIndex + 1} / {allImages.length}
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        {/* Üst Kısım: Başlık ve Butonlar */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900">{product.title}</h1>
+            <p className="text-gray-500 mt-2 flex items-center gap-2 font-medium">
+              <FiMapPin className="text-blue-600" /> {product.city}, {product.district}
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <button className="flex items-center gap-2 text-gray-600 bg-white border border-gray-200 px-4 py-2 rounded-lg hover:bg-gray-50 font-medium transition-colors">
+              <FiShare2 /> Paylaş
+            </button>
+            <button className="flex items-center gap-2 text-gray-600 bg-white border border-gray-200 px-4 py-2 rounded-lg hover:text-red-500 hover:bg-red-50 font-medium transition-colors">
+              <FiHeart /> Favoriye Al
+            </button>
+          </div>
+        </div>
+
+        {/* Ana İçerik Grid'i */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* SOL TARAF: GALERİ VE AÇIKLAMALAR */}
+          <div className="lg:col-span-2">
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-200">
+              
+              {/* Ana Büyük Resim */}
+              <div 
+                className="w-full aspect-[4/3] bg-gray-100 rounded-xl overflow-hidden cursor-pointer relative group"
+                onClick={() => setLightboxOpen(true)}
+              >
+                <img 
+                  src={allImages[activeImageIndex]} 
+                  alt="Ana Resim" 
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                />
+                <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors"></div>
+              </div>
+
+              {/* Küçük Resimler (Thumbnails) */}
+              <div className="flex gap-2 mt-4 overflow-x-auto pb-2 custom-scrollbar">
+                {allImages.map((img, idx) => (
+                  <div 
+                    key={idx} 
+                    onClick={() => setActiveImageIndex(idx)}
+                    className={`flex-shrink-0 w-24 h-16 md:w-32 md:h-24 rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${activeImageIndex === idx ? 'border-blue-600 opacity-100 scale-95' : 'border-transparent opacity-70 hover:opacity-100'}`}
+                  >
+                    <img src={img} className="w-full h-full object-cover" alt={`Thumb ${idx}`} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* İlan Açıklaması */}
+            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 mt-8">
+              <h3 className="text-xl font-bold text-gray-900 border-b pb-4 mb-6">İlan Açıklaması</h3>
+              <p className="text-gray-700 whitespace-pre-line text-lg leading-relaxed">{product.description}</p>
+            </div>
+
+            {/* Ev Özellikleri (Amenities) */}
+            {product.amenities && product.amenities.length > 0 && (
+              <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 mt-8">
+                <h3 className="text-xl font-bold text-gray-900 border-b pb-4 mb-6">İç ve Dış Özellikler</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {product.amenities.map((amenity: string, idx: number) => (
+                    <div key={idx} className="flex items-center gap-3 text-gray-800 font-medium">
+                      <FiCheck className="text-green-500 text-xl" /> {amenity}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* SAĞ TARAF: FİYAT VE PROFESYONEL DETAY TABLOSU */}
+          <div className="space-y-6">
+            
+            {/* Fiyat Kutusu */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 text-center">
+              <p className="text-gray-500 font-medium mb-1">Satış Fiyatı</p>
+              <p className="text-4xl font-extrabold text-blue-600">
+                {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(product.price)}
+              </p>
+            </div>
+
+            {/* Detay Tablosu (Jilet Gibi Temiz) */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+              <h3 className="text-lg font-bold text-gray-900 bg-gray-50 p-5 border-b border-gray-200">İlan Detayları</h3>
+              <div className="divide-y divide-gray-100">
+                <div className="flex justify-between p-4 hover:bg-gray-50 transition-colors"><span className="text-gray-500 font-medium">Emlak Tipi</span><span className="font-bold text-gray-900">{product.categoryName || '-'}</span></div>
+                <div className="flex justify-between p-4 hover:bg-gray-50 transition-colors"><span className="text-gray-500 font-medium">İlan Durumu</span><span className="font-bold text-blue-600">{product.type || '-'}</span></div>
+                <div className="flex justify-between p-4 hover:bg-gray-50 transition-colors"><span className="text-gray-500 font-medium">Brüt M²</span><span className="font-bold text-gray-900">{product.size} m²</span></div>
+                <div className="flex justify-between p-4 hover:bg-gray-50 transition-colors"><span className="text-gray-500 font-medium">Oda Sayısı</span><span className="font-bold text-gray-900">{product.roomCount}</span></div>
+                <div className="flex justify-between p-4 hover:bg-gray-50 transition-colors"><span className="text-gray-500 font-medium">Yatak Odası</span><span className="font-bold text-gray-900">{product.bedroomCount}</span></div>
+                <div className="flex justify-between p-4 hover:bg-gray-50 transition-colors"><span className="text-gray-500 font-medium">Banyo Sayısı</span><span className="font-bold text-gray-900">{product.bathCount}</span></div>
+              </div>
+            </div>
+
+            {/* İletişim Kutusu */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+               <h3 className="text-lg font-bold text-gray-900 mb-4">İletişim Kurun</h3>
+               <button className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 shadow-md transition-colors mb-3">Hemen Ara</button>
+               <button className="w-full bg-green-50 text-green-700 font-bold py-3.5 rounded-xl hover:bg-green-100 transition-colors">WhatsApp'tan Yaz</button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+      `}} />
+    </div>
+  );
+}
+</file>
+
+<file path="app/(public)/ilanlar/page.tsx">
+"use client";
+
+import { useEffect, useState } from 'react';
+import { getProductsAPI } from '../../../services/productService';
+import { getAllCategoriesAPI } from '../../../services/categoryService';
+import ProductCard from '../../../components/ProductCard';
+import { FiSearch, FiFilter, FiChevronLeft, FiChevronRight, FiMapPin, FiHome, FiDollarSign } from 'react-icons/fi';
+
+// Veritabanındaki Amenity tablonuzla eşleşecek örnek özellikler
+const AMENITIES_LIST = [
+  { id: 1, name: "Havuz" },
+  { id: 2, name: "Otopark" },
+  { id: 3, name: "Asansör" },
+  { id: 4, name: "7/24 Güvenlik" },
+  { id: 5, name: "Balkon" },
+  { id: 6, name: "Klima" },
+  { id: 7, name: "Yerden Isıtma" },
+  { id: 8, name: "Spor Salonu" }
+];
+
+export default function ProductsPage() {
+  const [products, setProducts] = useState([]);
+  const [metaData, setMetaData] = useState<any>(null);
+  const [categories, setCategories] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // GÜNCELLENMİŞ VE GENİŞLETİLMİŞ FİLTRE STATE'İ
+  const [filters, setFilters] = useState({
+    searchKeyword: '',
+    type: '', // Satılık, Kiralık vs.
+    categoryId: '',
+    city: '',
+    district: '',
+    minPrice: '',
+    maxPrice: '',
+    roomCount: '',
+    bathCount: '',
+    amenities: [] as number[], // Seçilen özelliklerin ID'lerini tutacak dizi
+    sortBy: 'DateDesc',
+    pageNumber: 1,
+    pageSize: 9
+  });
+
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        const cats = await getAllCategoriesAPI();
+        setCategories(cats);
+        await fetchProducts(filters);
+      } catch (error) {
+        console.error("Veri yükleme hatası", error);
+      }
+    };
+    fetchInitialData();
+  }, []);
+
+  const fetchProducts = async (currentFilters: any) => {
+    setIsLoading(true);
+    try {
+      // Sadece içi dolu olan filtreleri backend'e gönderiyoruz
+      const cleanFilters: any = {};
+      Object.keys(currentFilters).forEach(key => {
+        if (currentFilters[key] !== '' && currentFilters[key] !== null) {
+          // Diziler boşsa gönderme, doluysa gönder
+          if (Array.isArray(currentFilters[key])) {
+             if (currentFilters[key].length > 0) cleanFilters[key] = currentFilters[key];
+          } else {
+             cleanFilters[key] = currentFilters[key];
+          }
+        }
+      });
+      
+      const response = await getProductsAPI(cleanFilters);
+      setProducts(response.items);
+      setMetaData(response.metaData);
+    } catch (error) {
+      console.error("İlanlar getirilemedi:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFilterSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const newFilters = { ...filters, pageNumber: 1 };
+    setFilters(newFilters);
+    fetchProducts(newFilters);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    const newFilters = { ...filters, pageNumber: newPage };
+    setFilters(newFilters);
+    fetchProducts(newFilters);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Checkbox'a tıklandığında özellikleri ekle/çıkar
+  const handleAmenityToggle = (amenityId: number) => {
+    setFilters(prev => {
+      const hasAmenity = prev.amenities.includes(amenityId);
+      return {
+        ...prev,
+        amenities: hasAmenity 
+          ? prev.amenities.filter(id => id !== amenityId) 
+          : [...prev.amenities, amenityId]
+      };
+    });
+  };
+
+  return (
+    <div className="bg-gray-50 min-h-screen py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <div className="flex flex-col lg:flex-row gap-8">
+          
+          {/* SOL BÖLÜM: DETAYLI FİLTRELEME SİDEBAR'I */}
+          <div className="w-full lg:w-1/3 xl:w-1/4">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 sticky top-24 max-h-[85vh] overflow-y-auto custom-scrollbar">
+              <h3 className="text-xl font-extrabold text-gray-900 mb-6 flex items-center gap-2 border-b pb-4">
+                <FiFilter className="text-blue-600" /> Detaylı Arama
+              </h3>
+
+              <form onSubmit={handleFilterSubmit} className="space-y-6">
+                
+                {/* İlan Tipi (Radio Buttons) */}
+                <div className="flex bg-gray-100 p-1 rounded-xl">
+                  {['', 'Satılık', 'Kiralık'].map((typeOption) => (
+                    <button
+                      key={typeOption}
+                      type="button"
+                      onClick={() => setFilters({ ...filters, type: typeOption })}
+                      className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${
+                        filters.type === typeOption 
+                        ? 'bg-white text-blue-600 shadow-sm' 
+                        : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      {typeOption === '' ? 'Tümü' : typeOption}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Anahtar Kelime */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Kelime ile Ara</label>
+                  <div className="relative">
+                    <input 
+                      type="text" 
+                      placeholder="Örn: Deniz manzaralı..." 
+                      value={filters.searchKeyword}
+                      onChange={(e) => setFilters({...filters, searchKeyword: e.target.value})}
+                      className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400 focus:bg-white transition-colors" 
+                    />
+                    <FiSearch className="absolute left-3 top-3.5 text-gray-400 text-lg" />
+                  </div>
+                </div>
+
+                {/* Kategori */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Emlak Tipi</label>
+                  <select 
+                    value={filters.categoryId}
+                    onChange={(e) => setFilters({...filters, categoryId: e.target.value})}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400 focus:bg-white transition-colors"
+                  >
+                    <option value="">Tüm Kategoriler</option>
+                    {categories.map((cat: any) => (
+                      <option key={cat.categoryId || cat.id} value={cat.categoryId || cat.id}>
+                        {cat.name || cat.categoryName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Konum (Şehir & İlçe) */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Konum</label>
+                  <div className="flex gap-2 mb-2">
+                    <div className="relative w-1/2">
+                      <FiMapPin className="absolute left-3 top-3 text-gray-400" />
+                      <input type="text" placeholder="İl" value={filters.city} onChange={(e) => setFilters({...filters, city: e.target.value})} className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-blue-400" />
+                    </div>
+                    <div className="relative w-1/2">
+                      <input type="text" placeholder="İlçe" value={filters.district} onChange={(e) => setFilters({...filters, district: e.target.value})} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-blue-400" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Fiyat */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Fiyat Aralığı (₺)</label>
+                  <div className="flex items-center gap-2">
+                    <input type="number" placeholder="Min" value={filters.minPrice} onChange={(e) => setFilters({...filters, minPrice: e.target.value})} className="w-1/2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-blue-400" />
+                    <span className="text-gray-400">-</span>
+                    <input type="number" placeholder="Max" value={filters.maxPrice} onChange={(e) => setFilters({...filters, maxPrice: e.target.value})} className="w-1/2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-blue-400" />
+                  </div>
+                </div>
+
+                {/* Oda ve Banyo */}
+                <div className="flex gap-4">
+                  <div className="w-1/2">
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Oda Sayısı</label>
+                    <select value={filters.roomCount} onChange={(e) => setFilters({...filters, roomCount: e.target.value})} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-blue-400">
+                      <option value="">Farketmez</option>
+                      <option value="1">1+ Odalı</option>
+                      <option value="2">2+ Odalı</option>
+                      <option value="3">3+ Odalı</option>
+                      <option value="4">4+ Odalı</option>
+                    </select>
+                  </div>
+                  <div className="w-1/2">
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Banyo</label>
+                    <select value={filters.bathCount} onChange={(e) => setFilters({...filters, bathCount: e.target.value})} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-blue-400">
+                      <option value="">Farketmez</option>
+                      <option value="1">1+ Banyo</option>
+                      <option value="2">2+ Banyo</option>
+                      <option value="3">3+ Banyo</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Özellikler (Amenities - Checkbox Grid) */}
+                <div className="pt-2">
+                  <label className="block text-sm font-bold text-gray-700 mb-3">Ev Özellikleri</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {AMENITIES_LIST.map((amenity) => (
+                      <label key={amenity.id} className="flex items-center gap-2 cursor-pointer group">
+                        <div className="relative flex items-center justify-center">
+                          <input 
+                            type="checkbox" 
+                            checked={filters.amenities.includes(amenity.id)}
+                            onChange={() => handleAmenityToggle(amenity.id)}
+                            className="peer appearance-none w-5 h-5 border-2 border-gray-300 rounded-md checked:bg-blue-600 checked:border-blue-600 cursor-pointer transition-all"
+                          />
+                          <FiHome className="absolute text-white opacity-0 peer-checked:opacity-100 w-3 h-3 pointer-events-none" />
+                        </div>
+                        <span className="text-sm text-gray-600 group-hover:text-gray-900 transition-colors">{amenity.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Sıralama */}
+                <div className="pt-4 border-t border-gray-100">
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Sıralama</label>
+                  <select 
+                    value={filters.sortBy}
+                    onChange={(e) => setFilters({...filters, sortBy: e.target.value})}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-blue-400"
+                  >
+                    <option value="DateDesc">Tarihe Göre: En Yeniler</option>
+                    <option value="DateAsc">Tarihe Göre: En Eskiler</option>
+                    <option value="PriceAsc">Fiyat: Düşükten Yükseğe</option>
+                    <option value="PriceDesc">Fiyat: Yüksekten Düşüğe</option>
+                  </select>
+                </div>
+
+                <button type="submit" className="w-full bg-blue-600 text-white font-extrabold py-4 rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 active:scale-95">
+                  {isLoading ? 'Aranıyor...' : 'Sonuçları Getir'}
+                </button>
+              </form>
+            </div>
+          </div>
+
+          {/* SAĞ BÖLÜM: İLAN LİSTESİ VE SAYFALAMA */}
+          <div className="w-full lg:w-2/3 xl:w-3/4">
+            
+            {/* Üst Bilgi */}
+            <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+              <h1 className="text-2xl font-extrabold text-gray-900">
+                {filters.type === 'Satılık' ? 'Satılık İlanlar' : filters.type === 'Kiralık' ? 'Kiralık İlanlar' : 'Tüm İlanlar'}
+              </h1>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500 font-medium">Toplam</span>
+                <span className="bg-blue-50 text-blue-700 font-bold px-3 py-1 rounded-lg">
+                  {metaData?.totalCount || 0} Sonuç
+                </span>
+              </div>
+            </div>
+
+            {/* İlan Grid'i */}
+            {isLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[1,2,3,4,5,6].map(i => (
+                  <div key={i} className="h-[400px] bg-gray-200 animate-pulse rounded-2xl"></div>
+                ))}
+              </div>
+            ) : products.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-32 bg-white rounded-3xl border border-gray-100 shadow-sm">
+                <FiSearch className="text-6xl text-gray-300 mb-4" />
+                <p className="text-2xl font-extrabold text-gray-800 mb-2">Sonuç Bulunamadı</p>
+                <p className="text-gray-500 text-center max-w-md">Kriterlerinize uygun ilan şu an için mevcut değil. Lütfen filtrelerinizi esneterek tekrar deneyin.</p>
+                <button onClick={() => window.location.reload()} className="mt-6 text-blue-600 font-bold hover:underline">Filtreleri Temizle</button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {products.map((product: any) => (
+                  <ProductCard key={product.productId} product={product} />
+                ))}
+              </div>
+            )}
+
+            {/* SAYFALAMA (PAGINATION) BÖLÜMÜ */}
+            {metaData && metaData.totalPages > 1 && (
+              <div className="mt-12 flex justify-center items-center gap-2">
+                <button onClick={() => handlePageChange(metaData.currentPage - 1)} disabled={!metaData.hasPrevious} className="p-3 bg-white rounded-xl shadow-sm border border-gray-200 disabled:opacity-50 hover:bg-blue-50 hover:text-blue-600 transition-colors">
+                  <FiChevronLeft className="text-xl" />
+                </button>
+                {[...Array(metaData.totalPages)].map((_, i) => {
+                  const page = i + 1;
+                  return (
+                    <button key={page} onClick={() => handlePageChange(page)} className={`w-12 h-12 rounded-xl font-extrabold shadow-sm border transition-all ${metaData.currentPage === page ? 'bg-blue-600 text-white border-blue-600 scale-110' : 'bg-white text-gray-600 border-gray-200 hover:bg-blue-50 hover:text-blue-600'}`}>
+                      {page}
+                    </button>
+                  );
+                })}
+                <button onClick={() => handlePageChange(metaData.currentPage + 1)} disabled={!metaData.hasNext} className="p-3 bg-white rounded-xl shadow-sm border border-gray-200 disabled:opacity-50 hover:bg-blue-50 hover:text-blue-600 transition-colors">
+                  <FiChevronRight className="text-xl" />
+                </button>
+              </div>
+            )}
+
+          </div>
+
+        </div>
+      </div>
+      
+      {/* Özel Scrollbar CSS'i (Sadece bu sayfaya etki etsin diye buraya yazıyoruz) */}
+      <style dangerouslySetInnerHTML={{ __html: `
+  .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+`}} />
+    </div>
+  );
+}
+</file>
+
+<file path="app/(public)/layout.tsx">
+import Navbar from '@/components/Navbar';
+// İleride Footer'ı da buraya ekleyeceğiz
+
+export default function PublicLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col min-h-screen bg-gray-50">
+      {/* 🌟 Tasarladığımız Şık Navbar Geldi */}
+      <Navbar />
+      
+      {/* Ana Sayfa İçeriği */}
+      <main className="flex-grow">{children}</main>
+
+      {/* Kaba inşaat Footer (İleride düzelteceğiz) */}
+      <footer className="bg-gray-900 text-white p-6 text-center mt-auto">
+        <p className="text-sm text-gray-400">© 2026 RealEstate. Tüm hakları saklıdır.</p>
+      </footer>
+    </div>
+  );
+}
+</file>
+
+<file path="app/(public)/login/page.tsx">
+"use client";
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { loginAPI } from '@/services/authService';
+import { useAuthStore } from '@/store/useAuthStore'; // 🌟 ZUSTAND IMPORTU
+import { jwtDecode } from 'jwt-decode'; // 🌟 DECODE IMPORTU
+
+export default function LoginPage() {
+  const router = useRouter();
+  const { login: setZustandLogin } = useAuthStore(); // 🌟 ZUSTAND FONKSİYONU
+  
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+
+    try {
+      // 1. API'den token'ı al
+      const token = await loginAPI({ username, password });
+      
+      // 2. Token'ı Zustand hafızasına yolla (O arka planda cookie'ye kaydedecek)
+      setZustandLogin(token); 
+      
+      // 3. Rolü çöz ve doğru yere yönlendir!
+      const decoded: any = jwtDecode(token);
+      const role = decoded['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
+
+      if (role === 'User') {
+        router.push('/'); // Müşteri ise Ana Sayfaya Vitrine
+      } else {
+        router.push('/panel'); // Admin veya Emlakçı ise Panele
+      }
+      
+      router.refresh(); 
+      
+    } catch (err: any) {
+      setError('Kullanıcı adı veya şifre hatalı!');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-[80vh] flex items-center justify-center bg-gray-50 px-4">
+      {/* Kart Tasarımı */}
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 space-y-6">
+        
+        {/* Başlık Alanı */}
+        <div className="text-center">
+          <h2 className="text-3xl font-extrabold text-gray-900">Tekrar Hoş Geldiniz</h2>
+          <p className="text-sm text-gray-500 mt-2">Hesabınıza giriş yaparak devam edin.</p>
+        </div>
+
+        {/* Hata Mesajı Alanı */}
+        {error && (
+          <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm text-center border border-red-200">
+            {error}
+          </div>
+        )}
+
+        {/* Form Alanı */}
+        <form onSubmit={handleLogin} className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Kullanıcı Adı</label>
+            <input
+              type="text"
+              required
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              placeholder="Kullanıcı adınızı girin"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Şifre</label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              placeholder="••••••••"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-all"
+          >
+            {isLoading ? 'Giriş Yapılıyor...' : 'Giriş Yap'}
+          </button>
+        </form>
+
+        {/* Alt Linkler */}
+        <div className="text-center text-sm text-gray-600 mt-4">
+          Hesabınız yok mu?{' '}
+          <Link href="/register" className="font-medium text-blue-600 hover:text-blue-500 transition-colors">
+            Hemen Kayıt Olun
+          </Link>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="app/(public)/page.tsx">
+import Hero from '@/components/Hero';
+import FeaturedProducts from '@/components/FeaturedProducts'; // 🌟 YENİ EKLENDİ
+
+export default function HomePage() {
+  return (
+    <div>
+      <Hero />
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+         <div className="text-center mb-12">
+           <h2 className="text-3xl font-extrabold text-gray-900 mb-4">Öne Çıkan İlanlar</h2>
+           <p className="text-gray-500 max-w-2xl mx-auto text-lg">
+             En çok incelenen, fırsat niteliğindeki satılık ve kiralık ilanlarımızı keşfedin.
+           </p>
+         </div>
+         
+         {/* 🌟 API'den Çekilen Gerçek Kartlar Buraya Gelecek */}
+         <FeaturedProducts />
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="app/(public)/register/page.tsx">
+"use client";
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { registerUserAPI, registerAgentAPI } from '@/services/authService';
+
+export default function RegisterPage() {
+  const router = useRouter();
+  
+  // Hangi sekmedeyiz? 'user' (Müşteri) veya 'agent' (Emlakçı)
+  const [activeTab, setActiveTab] = useState<'user' | 'agent'>('user');
+
+  // Form verileri (Backend'deki RegisterDto ile birebir aynı)
+  const [formData, setFormData] = useState({
+    name: '',
+    surname: '',
+    username: '',
+    email: '',
+    password: ''
+  });
+
+  const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Input değişikliklerini yakala
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+    setIsLoading(true);
+
+    try {
+      if (activeTab === 'user') {
+        // Müşteri kaydı
+        await registerUserAPI(formData);
+      } else {
+        // Emlakçı kaydı
+        await registerAgentAPI(formData);
+      }
+
+      setSuccessMsg('Kayıt başarıyla oluşturuldu! Giriş sayfasına yönlendiriliyorsunuz...');
+      
+      // 2 saniye bekleyip login sayfasına at
+      setTimeout(() => {
+        router.push('/login');
+      }, 2000);
+
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Kayıt olurken bir hata oluştu. Lütfen bilgileri kontrol edin.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-[85vh] flex items-center justify-center bg-gray-50 py-10 px-4">
+      <div className="max-w-lg w-full bg-white rounded-2xl shadow-xl p-8 space-y-6">
+        
+        <div className="text-center">
+          <h2 className="text-3xl font-extrabold text-gray-900">Aramıza Katılın</h2>
+          <p className="text-sm text-gray-500 mt-2">Sisteme kayıt olmak için hesap türünüzü seçin.</p>
+        </div>
+
+        {/* Müşteri / Emlakçı Sekmeleri (Tabs) */}
+        <div className="flex rounded-lg bg-gray-100 p-1">
+          <button
+            onClick={() => setActiveTab('user')}
+            className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${
+              activeTab === 'user' ? 'bg-white text-blue-600 shadow' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Bireysel (Müşteri)
+          </button>
+          <button
+            onClick={() => setActiveTab('agent')}
+            className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${
+              activeTab === 'agent' ? 'bg-white text-blue-600 shadow' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Kurumsal (Emlakçı)
+          </button>
+        </div>
+
+        {/* Uyarı Mesajları */}
+        {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm text-center border border-red-200">{error}</div>}
+        {successMsg && <div className="bg-green-50 text-green-600 p-3 rounded-lg text-sm text-center border border-green-200">{successMsg}</div>}
+
+        {/* Kayıt Formu */}
+        <form onSubmit={handleRegister} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Ad</label>
+              <input type="text" name="name" required value={formData.name} onChange={handleChange}
+                className="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Soyad</label>
+              <input type="text" name="surname" required value={formData.surname} onChange={handleChange}
+                className="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Kullanıcı Adı</label>
+            <input type="text" name="username" required value={formData.username} onChange={handleChange}
+              className="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">E-Posta</label>
+            <input type="email" name="email" required value={formData.email} onChange={handleChange}
+              className="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Şifre</label>
+            <input type="password" name="password" required value={formData.password} onChange={handleChange}
+              className="mt-1 block w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isLoading || !!successMsg}
+            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-all mt-6"
+          >
+            {isLoading ? 'Kayıt Yapılıyor...' : `${activeTab === 'user' ? 'Bireysel' : 'Kurumsal'} Kayıt Ol`}
+          </button>
+        </form>
+
+        <div className="text-center text-sm text-gray-600">
+          Zaten hesabınız var mı?{' '}
+          <Link href="/login" className="font-medium text-blue-600 hover:text-blue-500 transition-colors">
+            Giriş Yapın
+          </Link>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="app/globals.css">
+/* Tailwind v4'ün yeni içe aktarma kodu budur */
+@import "tailwindcss";
+
+/* v4'te derleme hatası almamak için @apply yerine 
+   doğrudan renklerin Hex kodlarını kullanıyoruz 
+*/
+@layer base {
+  body {
+    background-color: #f9fafb; /* bg-gray-50 eşdeğeri */
+    color: #111827; /* text-gray-900 eşdeğeri */
+  }
+
+  input, textarea, select {
+    color: #111827 !important;
+  }
+}
+</file>
+
+<file path="app/layout.tsx">
+"use client"; // Zustand kullanacağımız için Client Component yaptık
+
+import { useEffect } from 'react';
+import { useAuthStore } from '@/store/useAuthStore';
+import "./globals.css";
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  
+  const { checkAuth } = useAuthStore();
+
+  // Site ilk açıldığında veya F5 atıldığında cookie'den token'ı oku ve hafızayı doldur!
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  return (
+    <html lang="tr">
+      <body>{children}</body>
+    </html>
+  );
+}
+</file>
+
+<file path="components/FeaturedProducts.tsx">
+"use client";
+
+import { useEffect, useState } from 'react';
+import { getAllProductsAPI } from '@/services/productService';
+import ProductCard from './ProductCard';
+
+export default function FeaturedProducts() {
+  const [products, setProducts] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    // Sayfa açıldığında API'den verileri çeken fonksiyon
+   const fetchProducts = async () => {
+      try {
+        const data = await getAllProductsAPI();
+        
+       // 🌟 AKILLI KONTROL: Backend veriyi nasıl göndermiş?
+        if (Array.isArray(data)) {
+          setProducts(data);
+        } else if (data && Array.isArray(data.$values)) {
+          setProducts(data.$values);
+        } else if (data && Array.isArray(data.data)) {
+          setProducts(data.data);
+        } else if (data && Array.isArray(data.items)) {
+          // 🌟 İŞTE YAKALADIK! Senin API'nin gönderdiği Sayfalama (Pagination) yapısı
+          // Gelen listedeki 'productId' alanlarını, bizim ProductCard'ın beklediği 'id' ismine çeviriyoruz
+          const formattedProducts = data.items.map((p: any) => ({
+            ...p,
+            id: p.productId || p.id 
+          }));
+          setProducts(formattedProducts);
+        } else {
+          console.error("Beklenmeyen API formatı geldi:", data);
+          setProducts([]); 
+        }
+        
+      } catch (err) {
+        setError('İlanlar yüklenirken bir sorun oluştu.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
+  if (isLoading) {
+    return <div className="text-center py-20 text-gray-500 font-medium animate-pulse">İlanlar yükleniyor...</div>;
+  }
+
+  if (error) {
+    return <div className="text-center py-20 text-red-500">{error}</div>;
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-12">
+      {/* Gelen her bir ilan (product) için ekrana bir ProductCard basıyoruz */}
+     {products.map((product: any, index: number) => (
+        <ProductCard key={product.productId || product.id || index} product={product} />
+      ))}
+      
+      {products.length === 0 && (
+        <div className="col-span-full text-center text-gray-500 py-10">
+          Şu an sistemde aktif bir ilan bulunmamaktadır.
+        </div>
+      )}
+    </div>
+  );
+}
+</file>
+
+<file path="components/Hero.tsx">
+import { FiSearch, FiMapPin, FiHome } from 'react-icons/fi';
+
+export default function Hero() {
+  return (
+    <div className="relative h-[75vh] flex items-center justify-center">
+      
+      {/* Arka Plan Resmi ve Siyah Karartma (Overlay) */}
+      <div 
+        className="absolute inset-0 z-0 bg-cover bg-center"
+        // Ücretsiz, yüksek kaliteli bir Unsplash ev görseli kullanıyoruz
+        style={{ backgroundImage: "url('https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?ixlib=rb-4.0.3&auto=format&fit=crop&w=2075&q=80')" }}
+      >
+        {/* Yazılar okunsun diye resmin üzerine %50 siyah bir tül (overlay) çekiyoruz */}
+        <div className="absolute inset-0 bg-black/50"></div>
+      </div>
+
+      {/* Ana İçerik (Z-10 ile resmin üstüne alıyoruz) */}
+      <div className="relative z-10 text-center px-4 w-full max-w-5xl">
+        <h1 className="text-4xl md:text-6xl font-extrabold text-white mb-6 drop-shadow-lg tracking-tight">
+          Hayalinizdeki Evi Bugün Bulun
+        </h1>
+        <p className="text-lg md:text-xl text-gray-200 mb-10 drop-shadow-md font-medium">
+          Binlerce satılık ve kiralık mülk arasından size en uygun olanı keşfedin.
+        </p>
+
+        {/* 🌟 Arama Çubuğu (Search Box) */}
+        <div className="bg-white p-3 rounded-2xl shadow-2xl flex flex-col md:flex-row gap-3">
+          
+          {/* Konum Inputu */}
+          <div className="flex-1 flex items-center bg-gray-50 rounded-xl px-4 py-3 border border-gray-100 hover:border-blue-300 transition-colors">
+            <FiMapPin className="text-blue-600 text-xl mr-3" />
+            <input 
+              type="text" 
+              placeholder="Şehir, İlçe veya Mahalle..." 
+              className="bg-transparent border-none outline-none w-full text-gray-700 placeholder-gray-400"
+            />
+          </div>
+
+          {/* Emlak Tipi Seçimi */}
+          <div className="flex-1 flex items-center bg-gray-50 rounded-xl px-4 py-3 border border-gray-100 hover:border-blue-300 transition-colors">
+            <FiHome className="text-blue-600 text-xl mr-3" />
+            <select className="bg-transparent border-none outline-none w-full text-gray-700 cursor-pointer appearance-none">
+              <option value="">Emlak Tipi Seçin</option>
+              <option value="Satilik">Satılık Ev</option>
+              <option value="Kiralik">Kiralık Ev</option>
+              <option value="Arsa">Arsa / Arazi</option>
+              <option value="IsYeri">İş Yeri</option>
+            </select>
+          </div>
+
+          {/* Arama Butonu */}
+          <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl transition-all flex items-center justify-center gap-2 hover:shadow-lg">
+            <FiSearch className="text-xl" />
+            <span>Ara</span>
+          </button>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="components/Navbar.tsx">
+"use client";
+
+import Link from 'next/link';
+import { useAuthStore } from '@/store/useAuthStore';
+import { useState } from 'react';
+// İkonlar için react-icons kullanıyoruz (Yüklemiştik)
+import { FiUser, FiLogOut, FiMenu, FiX, FiHome } from 'react-icons/fi';
+
+export default function Navbar() {
+  // Zustand hafızasından kullanıcıyı ve çıkış yapma fonksiyonunu çekiyoruz
+  const { user, logout } = useAuthStore();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  return (
+    <nav className="bg-white shadow-md sticky top-0 z-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-20">
+          
+          {/* Sol Kısım: Logo */}
+          <div className="flex items-center">
+            <Link href="/" className="flex items-center gap-2 text-2xl font-extrabold text-blue-600 tracking-tight">
+              <FiHome className="text-3xl" />
+              <span>RealEstate</span>
+            </Link>
+          </div>
+
+          {/* Orta Kısım: Menü Linkleri (Sadece Masaüstü) */}
+          <div className="hidden md:flex items-center space-x-8">
+            <Link href="/" className="text-gray-600 hover:text-blue-600 font-medium transition-colors">Ana Sayfa</Link>
+            <Link href="/ilanlar" className="text-gray-600 hover:text-blue-600 font-medium transition-colors">İlanlar</Link>
+            <Link href="/hakkimizda" className="text-gray-600 hover:text-blue-600 font-medium transition-colors">Hakkımızda</Link>
+            <Link href="/iletisim" className="text-gray-600 hover:text-blue-600 font-medium transition-colors">İletişim</Link>
+          </div>
+
+          {/* Sağ Kısım: Kullanıcı İşlemleri */}
+          <div className="hidden md:flex items-center space-x-4">
+            {user ? (
+              // 🌟 EĞER GİRİŞ YAPMIŞSA (Zustand'da user varsa)
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-semibold text-gray-700 bg-gray-100 px-3 py-1 rounded-full">
+                  Hoş geldin, {user.name}
+                </span>
+                
+                {/* Eğer giren kişi Admin veya Emlakçı ise Panel Butonu göster */}
+                {(user.role === 'Admin' || user.role === 'EstateAgent') && (
+                   <Link href="/panel" className="text-sm bg-blue-50 text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-100 transition-colors">
+                     Panele Git
+                   </Link>
+                )}
+                
+                {/* Herkese Çıkış Yap butonu */}
+                <button 
+                  onClick={logout} 
+                  className="flex items-center gap-2 text-red-500 hover:text-red-700 font-medium transition-colors"
+                >
+                  <FiLogOut /> Çıkış
+                </button>
+              </div>
+            ) : (
+              // 🌟 EĞER GİRİŞ YAPMAMIŞSA (Misafir)
+              <div className="flex gap-3">
+                <Link href="/login" className="flex items-center gap-2 text-blue-600 font-medium hover:text-blue-800 transition-colors">
+                  <FiUser /> Giriş Yap
+                </Link>
+                <Link href="/register" className="bg-blue-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-blue-700 shadow-sm transition-colors">
+                  Kayıt Ol
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* Mobil Menü Açma/Kapama Butonu */}
+          <div className="flex items-center md:hidden">
+            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-gray-600 hover:text-blue-600 text-2xl">
+              {isMobileMenuOpen ? <FiX /> : <FiMenu />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobil Menü (Açılırsa gözükür) */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden bg-gray-50 border-t border-gray-100 p-4 space-y-4">
+           <Link href="/" className="block text-gray-700 font-medium hover:text-blue-600">Ana Sayfa</Link>
+           <Link href="/ilanlar" className="block text-gray-700 font-medium hover:text-blue-600">İlanlar</Link>
+           {user ? (
+             <div className="pt-4 border-t border-gray-200">
+               <p className="text-sm text-gray-500 mb-2">Hoş geldin, {user.name}</p>
+               {(user.role === 'Admin' || user.role === 'EstateAgent') && (
+                   <Link href="/panel" className="block text-blue-600 font-medium mb-2">Panele Git</Link>
+                )}
+               <button onClick={logout} className="text-red-500 font-medium flex items-center gap-2"><FiLogOut/> Çıkış Yap</button>
+             </div>
+           ) : (
+             <div className="flex flex-col gap-2 pt-4 border-t border-gray-200">
+               <Link href="/login" className="text-blue-600 font-medium text-center border border-blue-600 py-2 rounded-lg">Giriş Yap</Link>
+               <Link href="/register" className="bg-blue-600 text-white font-medium text-center py-2 rounded-lg">Kayıt Ol</Link>
+             </div>
+           )}
+        </div>
+      )}
+    </nav>
+  );
+}
+</file>
+
+<file path="components/ProductCard.tsx">
+import Link from 'next/link';
+import { FiMapPin } from 'react-icons/fi';
+
+// API'den gelecek olan veri tipini (Props) belirliyoruz
+interface ProductProps {
+  productId: number;
+  title: string;
+  price: number;
+  city: string;
+  district: string;
+  type: string; // Satılık veya Kiralık
+  coverImage: string;
+}
+
+export default function ProductCard({ product }: { product: ProductProps }) {
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-xl transition-all overflow-hidden group">
+      
+      {/* Resim Alanı */}
+      <div className="relative h-64 overflow-hidden bg-gray-200">
+        <img
+          // Eğer ilanın resmi yoksa varsayılan (default) şık bir ev resmi göster
+          src={product.coverImage || 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=800&q=80'}
+          alt={product.title}
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+        />
+        {/* Satılık / Kiralık Etiketi */}
+        <div className={`absolute top-4 right-4 text-white font-bold px-3 py-1 rounded-lg text-sm shadow-md ${product.type === 'Kiralık' ? 'bg-orange-500' : 'bg-blue-600'}`}>
+          {product.type}
+        </div>
+      </div>
+
+      {/* İçerik Alanı */}
+      <div className="p-5">
+        <h3 className="text-xl font-bold text-gray-900 mb-2 truncate" title={product.title}>
+          {product.title}
+        </h3>
+        <p className="text-gray-500 text-sm flex items-center gap-1 mb-4">
+          <FiMapPin className="text-blue-500" /> {product.city}, {product.district}
+        </p>
+        
+        {/* Fiyat ve Detay Butonu */}
+        <div className="flex justify-between items-center border-t border-gray-100 pt-4">
+          <span className="text-2xl font-extrabold text-blue-600">
+            {/* Parayı Türk Lirası formatında (₺1.500.000,00) yazdırıyoruz */}
+            {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 }).format(product.price)}
+          </span>
+          <Link href={`/ilan/${product.productId}`} className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors">
+            Detaylar &rarr;
+          </Link>
+        </div>
+      </div>
+
+    </div>
+  );
+}
+</file>
+
+<file path="components/Sidebar.tsx">
+"use client";
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useAuthStore } from '@/store/useAuthStore';
+import { 
+  FiGrid, FiList, FiPlusSquare, FiSettings, 
+  FiUsers, FiLogOut, FiMonitor, FiArrowLeft 
+} from 'react-icons/fi';
+
+export default function Sidebar() {
+  const { user, logout } = useAuthStore();
+  const pathname = usePathname(); // Hangi sayfadaysak o menüyü mavi (aktif) yapacağız
+
+  // Menü Elemanı Tasarım Fonksiyonu (Tekrarı önlemek için)
+  const NavItem = ({ href, icon: Icon, text }: { href: string, icon: any, text: string }) => {
+    const isActive = pathname === href;
+    return (
+      <Link 
+        href={href} 
+        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${
+          isActive 
+            ? 'bg-blue-600 text-white shadow-md' 
+            : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+        }`}
+      >
+        <Icon className="text-xl" />
+        <span>{text}</span>
+      </Link>
+    );
+  };
+
+  return (
+    <aside className="w-72 bg-gray-900 text-white flex flex-col min-h-screen sticky top-0 shadow-2xl">
+      
+      {/* Profil ve Başlık Alanı */}
+      <div className="p-6 border-b border-gray-800">
+        <h2 className="text-2xl font-extrabold text-white flex items-center gap-2">
+          <FiMonitor className="text-blue-500" /> 
+          <span>Yönetim</span>
+        </h2>
+        <div className="mt-4 bg-gray-800 p-3 rounded-xl flex flex-col">
+          <span className="text-sm text-gray-400">Hoş geldin,</span>
+          <span className="font-bold text-blue-400 truncate" title={user?.name}>{user?.name}</span>
+          <span className="text-xs bg-gray-700 text-gray-300 w-max px-2 py-1 rounded-md mt-2">
+            {user?.role === 'Admin' ? 'Sistem Yöneticisi' : 'Emlak Danışmanı'}
+          </span>
+        </div>
+      </div>
+
+      {/* Dinamik Menü Alanı (Role Göre Değişir) */}
+      <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+        <NavItem href="/panel" icon={FiGrid} text="Dashboard" />
+
+        {/* 🌟 SADECE EMLAKÇININ GÖRECEĞİ MENÜLER */}
+        {user?.role === 'EstateAgent' && (
+          <>
+            <NavItem href="/panel/ilanlarim" icon={FiList} text="İlanlarım" />
+            <NavItem href="/panel/ilan-ekle" icon={FiPlusSquare} text="Yeni İlan Ekle" />
+          </>
+        )}
+
+        {/* 🌟 SADECE ADMİNİN GÖRECEĞİ MENÜLER */}
+        {user?.role === 'Admin' && (
+          <>
+            <NavItem href="/panel/tum-ilanlar" icon={FiList} text="Tüm İlanlar" />
+            <NavItem href="/panel/kategoriler" icon={FiSettings} text="Kategori Yönetimi" />
+            <NavItem href="/panel/kullanicilar" icon={FiUsers} text="Kullanıcılar" />
+          </>
+        )}
+      </nav>
+
+      {/* Alt Kısım (Vitrine Dön ve Çıkış) */}
+      <div className="p-4 border-t border-gray-800 space-y-2">
+        <Link 
+          href="/" 
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-gray-800 hover:text-white transition-all font-medium"
+        >
+          <FiArrowLeft className="text-xl" />
+          <span>Vitrine Dön</span>
+        </Link>
+        <button 
+          onClick={logout} 
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500 hover:text-white transition-all font-medium"
+        >
+          <FiLogOut className="text-xl" />
+          <span>Çıkış Yap</span>
+        </button>
+      </div>
+
+    </aside>
+  );
+}
+</file>
+
+<file path="constants/cities.ts">
+export const TURKEY_CITIES = [
+  "Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Amasya", "Ankara", "Antalya", "Artvin", "Aydın", "Balıkesir",
+  "Bilecik", "Bingöl", "Bitlis", "Bolu", "Burdur", "Bursa", "Çanakkale", "Çankırı", "Çorum", "Denizli",
+  "Diyarbakır", "Edirne", "Elazığ", "Erzincan", "Erzurum", "Eskişehir", "Gaziantep", "Giresun", "Gümüşhane", "Hakkari",
+  "Hatay", "Isparta", "Mersin", "İstanbul", "İzmir", "Kars", "Kastamonu", "Kayseri", "Kırklareli", "Kırşehir",
+  "Kocaeli", "Konya", "Kütahya", "Malatya", "Manisa", "Kahramanmaraş", "Mardin", "Muğla", "Muş", "Nevşehir",
+  "Niğde", "Ordu", "Rize", "Sakarya", "Samsun", "Siirt", "Sinop", "Sivas", "Tekirdağ", "Tokat",
+  "Trabzon", "Tunceli", "Şanlıurfa", "Uşak", "Van", "Yozgat", "Zonguldak", "Aksaray", "Bayburt", "Karaman",
+  "Kırıkkale", "Batman", "Şırnak", "Bartın", "Ardahan", "Iğdır", "Yalova", "Karabük", "Kilis", "Osmaniye", "Düzce"
+];
+</file>
+
+<file path="proxy.ts">
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+export function proxy(request: NextRequest) {
+  const token = request.cookies.get('token')?.value;
+  const { pathname } = request.nextUrl;
+
+  // KURAL 1: Panele girmeye çalışıyor ama Token yoksa login'e at
+  if (pathname.startsWith('/panel') && !token) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  // KURAL 2: Panele girmeye çalışıyor ve Token'ı VARSA, Rolüne bak!
+  if (pathname.startsWith('/panel') && token) {
+    try {
+      // Token'ı manuel çözümlüyoruz
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const role = payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
+
+      // Rolü Müşteri (User) ise panelde işi yok, Ana Sayfaya postala!
+      if (role === 'User') {
+        return NextResponse.redirect(new URL('/', request.url));
+      }
+    } catch (error) {
+      // Token bozuksa login'e at
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+  }
+
+  // KURAL 3: Zaten giriş yapmışsa (Token varsa) Login ve Register sayfalarını görmesin
+  if ((pathname.startsWith('/login') || pathname.startsWith('/register')) && token) {
+     return NextResponse.redirect(new URL('/panel', request.url));
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ['/panel/:path*', '/login', '/register'],
+};
+</file>
+
+<file path="services/authService.ts">
+import axiosInstance from '../utils/axiosInstance';
+
+// Login DTO'ya uygun parametreler (Username, Password)
+export const loginAPI = async (loginData: any) => {
+  const response = await axiosInstance.post('/Auth/Login', loginData);
+  // Eğer backend objenin içinde 'token' diye dönüyorsa onu al, yoksa direkt datayı al
+  return response.data?.token || response.data; 
+};
+
+export const registerUserAPI = async (registerData: any) => {
+  const response = await axiosInstance.post('/Auth/Register', registerData);
+  return response.data;
+};
+
+export const registerAgentAPI = async (registerData: any) => {
+  const response = await axiosInstance.post('/Auth/RegisterAgent', registerData);
+  return response.data;
+};
+</file>
+
+<file path="services/categoryService.ts">
+import axiosInstance from '../utils/axiosInstance';
+
+export const getAllCategoriesAPI = async () => {
+  try {
+    // Eğer backend'de controller adın farklıysa buradaki '/Categories' kısmını '/Category' yapman gerekebilir.
+    const response = await axiosInstance.get('/Categories');
+    
+    console.log("🔥 KATEGORİ CEVABI:", response.data); // Casus kodumuz
+    
+    return response.data?.items || response.data?.$values || response.data || [];
+  } catch (error) {
+    console.error("🚨 KATEGORİ HATASI:", error);
+    return [];
+  }
+};
+</file>
+
+<file path="services/productService.ts">
+import axiosInstance from '../utils/axiosInstance';
+
+// İLAN DETAYINI GETİRME İŞLEMİ (GÜNCELLEME İÇİN KULLANACAĞIZ)
+export const getProductWithDetailsAPI = async (id: number) => {
+  const response = await axiosInstance.get(`/Products/GetProductWithDetails/${id}`);
+  return response.data;
+};
+
+
+// 1. İLAN LİSTELEME VE SİLME İŞLEMLERİ
+export const getAllProductsAPI = async () => {
+  const response = await axiosInstance.get('/Products');
+  return response.data?.items || response.data?.$values || response.data || [];
+};
+
+export const getMyProductsAPI = async (userId: number) => {
+  const response = await axiosInstance.get('/Products', { params: { AppUserId: userId } });
+  return response.data?.items || response.data?.$values || response.data || [];
+};
+
+export const deleteProductAPI = async (id: number) => {
+  const response = await axiosInstance.delete(`/Products/${id}`);
+  return response.data;
+};
+
+// 2. İLAN EKLEME SİHİRBAZI (WIZARD) İŞLEMLERİ
+export const createProductDraftAPI = async (productData: any) => {
+  const response = await axiosInstance.post('/Products/create-draft', productData);
+  return response.data;
+};
+
+export const addProductDetailAPI = async (detailData: any) => {
+  const response = await axiosInstance.post('/Products/add-detail', detailData);
+  return response.data;
+};
+
+export const updateProductAPI = async (updateData: any) => {
+  const response = await axiosInstance.put('/Products', updateData);
+  return response.data;
+};
+
+export const addProductImagesAPI = async (imagesData: any) => {
+  const response = await axiosInstance.post('/Products/add-images', imagesData);
+  return response.data;
+};
+
+export const publishProductAPI = async (productId: number) => {
+  const response = await axiosInstance.put(`/Products/publish/${productId}`);
+  return response.data;
+};
+
+// 3. FİZİKSEL DOSYA YÜKLEME İŞLEMİ (SENİN IMAGES CONTROLLER)
+export const uploadImageAPI = async (file: File) => {
+  const formData = new FormData();
+  formData.append('file', file); // Backend'deki "IFormFile file" adı
+
+  const response = await axiosInstance.post('/Images/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data; // Bize { url: "/images/xyz.jpg" } dönecek
+};
+
+// 4. ÖZELLİKLER (AMENITIES) İŞLEMLERİ
+export const getProductAmenitiesAPI = async (productId: number) => {
+  const response = await axiosInstance.get(`/ProductAmenities/product/${productId}`);
+  return response.data?.$values || response.data || [];
+};
+
+export const updateProductAmenityAPI = async (dto: any) => {
+  const response = await axiosInstance.put('/ProductAmenities', dto);
+  return response.data;
+};
+
+export const getProductsAPI = async (filters: any = {}) => {
+  // C#'ın anlayacağı formata (amenities=1&amenities=2) çeviriyoruz
+  let queryParams = new URLSearchParams();
+  
+  Object.keys(filters).forEach(key => {
+    if (Array.isArray(filters[key])) {
+      filters[key].forEach((val: any) => queryParams.append(key, val));
+    } else if (filters[key] !== '' && filters[key] !== null && filters[key] !== undefined) {
+      queryParams.append(key, filters[key]);
+    }
+  });
+
+  const response = await axiosInstance.get(`/Products?${queryParams.toString()}`);
+  return response.data;
+};
+
+export const updateProductAmenitiesAPI = async (data: { productId: number, amenityIds: number[] }) => {
+  const response = await axiosInstance.post('/Products/add-amenities', data);
+  return response.data;
+};
+</file>
+
+<file path="store/useAuthStore.ts">
+import { create } from 'zustand';
+import { jwtDecode } from 'jwt-decode';
+import Cookies from 'js-cookie';
+
+interface AuthState {
+  isAuthenticated: boolean;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  } | null;
+  login: (token: string) => void;
+  logout: () => void;
+  checkAuth: () => void;
+}
+
+export const useAuthStore = create<AuthState>((set) => ({
+  isAuthenticated: false,
+  user: null,
+
+  // Login olunca çalışacak fonksiyon
+  login: (token: string) => {
+    Cookies.set('token', token, { expires: 1 }); 
+    
+    try {
+      const decoded: any = jwtDecode(token);
+      
+      // .NET'in uzun Claim isimlerini yakalıyoruz
+      const role = decoded['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
+      const name = decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'];
+      const email = decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'];
+      const id = decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'];
+
+      set({
+        isAuthenticated: true,
+        user: { id, name, email, role }
+      });
+    } catch (error) {
+      set({ isAuthenticated: false, user: null });
+    }
+  },
+
+  logout: () => {
+    Cookies.remove('token');
+    set({ isAuthenticated: false, user: null });
+    if (typeof window !== 'undefined') {
+        window.location.href = '/'; 
+    }
+  },
+
+  // Sayfa yenilendiğinde hafızayı tekrar doldurmak için
+  checkAuth: () => {
+    const token = Cookies.get('token');
+    if (token) {
+      try {
+        const decoded: any = jwtDecode(token);
+        const role = decoded['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
+        const name = decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'];
+        const email = decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'];
+        const id = decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'];
+
+        set({
+          isAuthenticated: true,
+          user: { id, name, email, role }
+        });
+      } catch (error) {
+        Cookies.remove('token');
+        set({ isAuthenticated: false, user: null });
+      }
+    }
+  }
+}));
+</file>
+
+<file path="utils/axiosInstance.ts">
+import axios from 'axios';
+import Cookies from 'js-cookie';
+
+const axiosInstance = axios.create({
+    baseURL: 'https://localhost:7252/api',
+});
+
+axiosInstance.interceptors.request.use(
+    (config) => {
+        const token = Cookies.get('token');
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => {
+        return Promise.reject(error);
+    }
+);
+
+axiosInstance.interceptors.response.use(
+    (response) => {
+        return response;
+    },
+    (error) => {
+        if (error.response && error.response.status === 401) {
+            Cookies.remove('token');
+            if (typeof window !== 'undefined') {
+                window.location.href = '/login';
+            }
+        }
+        return Promise.reject(error);
+    }
+);
+
+export default axiosInstance;
+</file>
+
+</files>
