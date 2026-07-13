@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -18,10 +19,14 @@ interface MapSelectorProps {
   onLocationChange: (lat: number, lng: number) => void;
 }
 
-// Koordinat değiştiğinde haritayı yeniden mount etmeden kaydırır
+// Harita hazır olduktan sonra (useEffect) görünümü günceller
 function ChangeView({ center }: { center: [number, number] }) {
   const map = useMap();
-  map.setView(center, map.getZoom(), { animate: false });
+
+  useEffect(() => {
+    map.setView(center, map.getZoom(), { animate: false });
+  }, [center, map]);
+
   return null;
 }
 
@@ -57,6 +62,7 @@ export default function MapSelector({ latitude, longitude, onLocationChange }: M
 
   return (
     <MapContainer
+      key={`${latitude}-${longitude}`}
       center={[centerLat, centerLng]}
       zoom={latitude ? 15 : 5}
       style={{ height: '350px', width: '100%' }}

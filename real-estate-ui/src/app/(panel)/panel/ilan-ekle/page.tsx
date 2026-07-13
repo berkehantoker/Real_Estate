@@ -102,13 +102,15 @@ export default function AddProductWizard() {
   // Mahalle değişince basicInfo'yu güncelle
   const handleNeighborhoodChange = async (neighborhood: string) => {
     setSelectedNeighborhood(neighborhood);
-    setBasicInfo({ ...basicInfo, neighborhood });
+    setBasicInfo(prev => ({ ...prev, neighborhood }));
 
     // Otomatik geocode - adresi koordinata çevir
     if (selectedCity && selectedDistrict && neighborhood) {
       const coords = await geocodeAddress(selectedCity, selectedDistrict, neighborhood);
       if (coords) {
-        setBasicInfo(prev => ({ ...prev, neighborhood, latitude: coords.lat, longitude: coords.lng }));
+        setBasicInfo(prev => ({ ...prev, latitude: coords.lat, longitude: coords.lng }));
+      } else {
+        console.warn('Konum bilgisi alınamadı. Lütfen haritayı manuel olarak konumlandırın.');
       }
     }
   };

@@ -162,17 +162,32 @@ export default function EditProductPage() {
   };
 
   const handleNeighborhoodChange = async (neighborhood: string) => {
-    setSelectedNeighborhood(neighborhood);
-    setFormData({ ...formData, neighborhood });
+  // 1. Tüm state'leri aynı anda güncelleyelim
+  setSelectedNeighborhood(neighborhood);
+  setFormData(prev => ({ ...prev, neighborhood }));
 
-    // Otomatik geocode
-    if (formData.city && formData.district && neighborhood) {
-      const coords = await geocodeAddress(formData.city, formData.district, neighborhood);
-      if (coords) {
-        setFormData(prev => ({ ...prev, neighborhood, latitude: coords.lat, longitude: coords.lng }));
+  // 2. State'in güncellenmesini beklemeden, elimizdeki güncel değişkenleri kullanalim
+  // formData.city yerine seçili olan selectedCity'yi, district yerine selectedDistrict'i veriyoruz
+  if (selectedCity && selectedDistrict && neighborhood) {
+    try {
+      const coords = await geocodeAddress(selectedCity, selectedDistrict, neighborhood);
+      
+      if (coords && coords.lat && coords.lng) {
+        // Koordinatları güvenli bir şekilde state'e yazıyoruz
+        setFormData(prev => ({ 
+          ...prev, 
+          latitude: coords.lat, 
+          longitude: coords.lng 
+        }));
+      } else {
+        console.warn('Konum bilgisi alınamadı. Lütfen haritayı manuel olarak konumlandırın.');
       }
+    } catch (error) {
+      console.error('Geocoding işlemi sırasında hata oluştu:', error);
     }
-  };
+  }
+};
+
 
   const handleLocationChange = (lat: number, lng: number) => {
     setFormData({ ...formData, latitude: lat, longitude: lng });
