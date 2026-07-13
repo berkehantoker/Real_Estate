@@ -248,6 +248,15 @@ namespace Repositories.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ChatMessageId"));
 
+                    b.Property<bool>("IsDeletedByReceiver")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeletedBySender")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeletedForAll")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsRead")
                         .HasColumnType("bit");
 

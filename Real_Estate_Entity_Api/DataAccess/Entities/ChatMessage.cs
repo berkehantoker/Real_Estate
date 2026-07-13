@@ -15,5 +15,9 @@ namespace DataAccess.Entities
         public AppUser Sender { get; set; }
         public AppUser Receiver { get; set; }
         public Product Product { get; set; }
+
+        public bool IsDeletedForAll { get; set; } = false;    // Herkes için silindi mi? (Tekil mesaj silme)
+        public bool IsDeletedBySender { get; set; } = false;  // Gönderen kendi ekranýndan sildi mi?
+        public bool IsDeletedByReceiver { get; set; } = false; // Alan kendi ekranýndan sildi mi?
     }
 }

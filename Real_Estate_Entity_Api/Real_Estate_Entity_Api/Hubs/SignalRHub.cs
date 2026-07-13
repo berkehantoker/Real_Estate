@@ -72,14 +72,26 @@ namespace Real_Estate_Entity_Api.Hubs
             await Clients.All.SendAsync("ReceiveTotalUserCount", await _statisticsService.TotalUserCountAsync());
         }
 
-        public async Task JoinProductChat(int productId)
+        public async Task JoinProductChat(int productId, int otherUserId)
         {
-            await Groups.AddToGroupAsync(Context.ConnectionId, $"product_{productId}");
+            var userId = GetUserIdFromToken();
+            if (userId.HasValue)
+            {
+                int minId = Math.Min(userId.Value, otherUserId);
+                int maxId = Math.Max(userId.Value, otherUserId);
+                await Groups.AddToGroupAsync(Context.ConnectionId, $"chat_{productId}_{minId}_{maxId}");
+            }
         }
 
-        public async Task LeaveProductChat(int productId)
+        public async Task LeaveProductChat(int productId, int otherUserId)
         {
-            await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"product_{productId}");
+            var userId = GetUserIdFromToken();
+            if (userId.HasValue)
+            {
+                int minId = Math.Min(userId.Value, otherUserId);
+                int maxId = Math.Max(userId.Value, otherUserId);
+                await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"chat_{productId}_{minId}_{maxId}");
+            }
         }
 
         public async Task SendChatMessage(int productId, int receiverId, int senderId, string senderName, string message)

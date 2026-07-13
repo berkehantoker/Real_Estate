@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useAuthStore } from '../../../store/useAuthStore';
-import { getChatMessagesAPI, sendChatMessageAPI } from '../../../services/chatService';
-import { FiMessageSquare, FiSend, FiArrowLeft } from 'react-icons/fi';
+import { getChatMessagesAPI, sendChatMessageAPI, deleteChatMessageAPI, deleteConversationAPI, markChatAsReadAPI } from '../../../services/chatService';
+import { FiMessageSquare, FiSend, FiArrowLeft, FiTrash2, FiXCircle } from 'react-icons/fi';
 import Link from 'next/link';
 import * as signalR from '@microsoft/signalr';
 import Cookies from 'js-cookie';
@@ -16,6 +16,7 @@ interface Contact {
   lastMessage: string;
   sentAt: string;
   isRead: boolean;
+  lastMessageSenderId: number;
 }
 
 interface ChatMessage {
@@ -24,6 +25,7 @@ interface ChatMessage {
   message: string;
   sentAt: string;
   senderName: string;
+  isDeletedForAll?: boolean;
 }
 
 export default function UserMessagesPage() {
@@ -60,11 +62,24 @@ export default function UserMessagesPage() {
       if (currentSelectedChat && msg.ProductId === currentSelectedChat.productId) {
         if (msg.SenderId === Number(useAuthStore.getState().user?.id)) return;
         setMessages(prev => [...prev, {
-          chatMessageId: Date.now(), senderId: msg.SenderId,
-          message: msg.Message, sentAt: msg.SentAt, senderName: msg.SenderName,
+          chatMessageId: msg.ChatMessageId || msg.chatMessageId || Date.now(),
+          senderId: msg.SenderId || msg.senderId,
+          message: msg.Message || msg.message,
+          sentAt: msg.SentAt || msg.sentAt,
+          senderName: msg.SenderName || msg.senderName,
+          isDeletedForAll: msg.IsDeletedForAll || msg.isDeletedForAll || false
         }]);
         scrollChatToBottom();
       }
+    });
+
+    connection.on('MessageDeleted', (data: any) => {
+      const targetId = data.ChatMessageId || data.chatMessageId;
+      setMessages(prev => prev.map(m => 
+        m.chatMessageId === targetId 
+          ? { ...m, message: "🚫 Bu mesaj silindi.", isDeletedForAll: true } 
+          : m
+      ));
     });
 
     const startSignalR = async () => {
@@ -106,15 +121,26 @@ export default function UserMessagesPage() {
   };
 
   const openChat = async (contact: Contact) => {
+    if (selectedChatRef.current && connectionRef.current?.state === signalR.HubConnectionState.Connected) {
+      await connectionRef.current.invoke('LeaveProductChat', selectedChatRef.current.productId, selectedChatRef.current.contactUserId).catch(() => {});
+    }
+
     setSelectedChat(contact);
     selectedChatRef.current = contact;
     setUnreadMessageCount(0);
     try {
-      const data = await getChatMessagesAPI(contact.productId);
-      setMessages(data);
-      if (connectionRef.current?.state === signalR.HubConnectionState.Connected) {
-        await connectionRef.current.invoke('JoinProductChat', contact.productId);
-      }
+      await markChatAsReadAPI(contact.productId, contact.contactUserId);
+      const data = await getChatMessagesAPI(contact.productId, contact.contactUserId);
+      const mappedData = data.map((m: any) => ({
+        chatMessageId: m.ChatMessageId || m.chatMessageId,
+        senderId: m.SenderId || m.senderId,
+        message: (m.IsDeletedForAll || m.isDeletedForAll) ? "🚫 Bu mesaj silindi." : (m.Message || m.message),
+        sentAt: m.SentAt || m.sentAt,
+        senderName: m.SenderName || m.senderName,
+        isDeletedForAll: m.IsDeletedForAll || m.isDeletedForAll || false
+      }));
+      setMessages(mappedData);
+      await connectionRef.current?.invoke('JoinProductChat', contact.productId, contact.contactUserId);
       scrollChatToBottom();
     } catch (error) {
       console.error('Mesajlar yüklenemedi:', error);
@@ -124,26 +150,64 @@ export default function UserMessagesPage() {
   const handleSend = async () => {
     if (!newMessage.trim() || !user || !selectedChat) return;
     const tempMessage = newMessage.trim();
-    setMessages(prev => [...prev, {
+    const optimisticMsg = {
       chatMessageId: Date.now(), senderId: Number(user.id),
       message: tempMessage, sentAt: new Date().toISOString(), senderName: user.name,
-    }]);
+    };
+    setMessages(prev => [...prev, optimisticMsg]);
     setNewMessage('');
     setIsSending(true);
     scrollChatToBottom();
 
     try {
-      await sendChatMessageAPI({
+      const realMsg = await sendChatMessageAPI({
         senderId: Number(user.id),
         receiverId: selectedChat.contactUserId,
         productId: selectedChat.productId,
         message: tempMessage,
       });
+
+      const realSQLId = realMsg.chatMessageId || realMsg.ChatMessageId;
+      if (realSQLId) {
+        setMessages(prev => prev.map(m => 
+          m.chatMessageId === optimisticMsg.chatMessageId 
+            ? { ...m, chatMessageId: realSQLId } 
+            : m
+        ));
+      }
+
       fetchContacts();
     } catch (error) {
       console.error('Mesaj gönderilemedi:', error);
+      setMessages(prev => prev.filter(m => m.chatMessageId !== optimisticMsg.chatMessageId));
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleDeleteMessage = async (chatMessageId: number) => {
+    if (!window.confirm('Mesajı herkes için silmek istiyor musunuz?')) return;
+    try {
+      await deleteChatMessageAPI(chatMessageId);
+      setMessages(prev => prev.map(m => 
+        m.chatMessageId === chatMessageId 
+          ? { ...m, message: "🚫 Bu mesaj silindi.", isDeletedForAll: true } 
+          : m
+      ));
+    } catch (error) {
+      console.error('Mesaj silinemedi:', error);
+    }
+  };
+
+  const handleDeleteConversation = async () => {
+    if (!selectedChat) return;
+    if (!window.confirm('Bu sohbet geçmişi sadece sizin ekranınızdan silinecektir. Emin misiniz?')) return;
+    try {
+      await deleteConversationAPI(selectedChat.productId, selectedChat.contactUserId);
+      setSelectedChat(null);
+      fetchContacts();
+    } catch (error) {
+      console.error('Sohbet temizlenemedi:', error);
     }
   };
 
@@ -190,23 +254,40 @@ export default function UserMessagesPage() {
                 </Link>
               </div>
             ) : (
-              contacts.map((contact) => (
+              contacts.map((contact) => {
+                const isUnreadForMe = !contact.isRead && contact.lastMessageSenderId !== Number(user?.id);
+
+                return (
                 <div
                   key={`${contact.productId}-${contact.contactUserId}`}
-                  onClick={() => openChat(contact)}
+                  onClick={() => {
+                    setContacts(prev => prev.map(c => 
+                      c.productId === contact.productId && c.contactUserId === contact.contactUserId 
+                        ? { ...c, isRead: true } 
+                        : c
+                    ));
+                    openChat(contact);
+                  }}
                   className={`p-4 cursor-pointer transition-colors hover:bg-gray-50 ${
-                    selectedChat?.productId === contact.productId ? 'bg-blue-50 border-l-4 border-blue-600' : ''
-                  }`}
+                    selectedChat?.productId === contact.productId ? 'bg-blue-50 border-l-4 border-blue-600' : 'border-l-4 border-transparent'
+                  } ${isUnreadForMe ? 'bg-blue-50/30' : ''}`}
                 >
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold text-gray-900 text-sm truncate">{contact.contactName}</p>
+                      <p className={`text-sm truncate transition-all ${isUnreadForMe ? 'font-extrabold text-gray-900' : 'font-bold text-gray-700'}`}>
+                        {contact.contactName}
+                      </p>
                       <p className="text-xs text-gray-500 truncate mt-0.5">{contact.productTitle}</p>
-                      <p className="text-xs text-gray-400 truncate mt-1">{contact.lastMessage}</p>
+                      <p className={`text-xs truncate mt-1 transition-all ${isUnreadForMe ? 'font-bold text-blue-600' : 'text-gray-400'}`}>
+                        {contact.lastMessage}
+                      </p>
                     </div>
+                    {isUnreadForMe && (
+                      <div className="w-2.5 h-2.5 bg-blue-600 rounded-full mt-1.5 flex-shrink-0 shadow-sm animate-pulse"></div>
+                    )}
                   </div>
                 </div>
-              ))
+              )})
             )}
           </div>
         </div>
@@ -218,17 +299,24 @@ export default function UserMessagesPage() {
                 <div className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center font-bold text-sm">
                   {selectedChat.contactName.charAt(0).toUpperCase()}
                 </div>
-                <div>
+                <div className="flex-1">
                   <p className="font-bold text-sm">{selectedChat.contactName}</p>
                   <p className="text-xs text-blue-100">{selectedChat.productTitle}</p>
                 </div>
+                <button
+                  onClick={handleDeleteConversation}
+                  title="Sohbeti Temizle"
+                  className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                >
+                  <FiXCircle className="text-lg" />
+                </button>
               </div>
               <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
                 {messages.map((msg, idx) => {
                   const isMine = msg.senderId === Number(user?.id);
                   return (
                     <div key={idx} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[75%] p-3 rounded-xl text-sm ${
+                      <div className={`relative max-w-[75%] p-3 rounded-xl text-sm ${
                         isMine ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm border border-gray-200 shadow-sm'
                       }`}>
                         {!isMine && <p className="text-xs font-bold text-blue-600 mb-1">{msg.senderName}</p>}
@@ -236,6 +324,15 @@ export default function UserMessagesPage() {
                         <p className={`text-[10px] mt-1.5 ${isMine ? 'text-blue-200' : 'text-gray-400'}`}>
                           {new Date(msg.sentAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
                         </p>
+                        {isMine && !msg.isDeletedForAll && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteMessage(msg.chatMessageId); }}
+                            className="absolute -top-1 -right-1 p-1 bg-white text-red-500 rounded-full shadow-sm hover:bg-red-50 transition-colors"
+                            title="Mesajı sil"
+                          >
+                            <FiTrash2 className="text-xs" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   );

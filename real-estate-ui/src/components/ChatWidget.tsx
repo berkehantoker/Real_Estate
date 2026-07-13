@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
-import { getChatMessagesAPI, sendChatMessageAPI } from '@/services/chatService';
-import { FiSend, FiMessageSquare, FiX } from 'react-icons/fi';
+import { getChatMessagesAPI, sendChatMessageAPI, deleteChatMessageAPI, markChatAsReadAPI } from '@/services/chatService';
+import { FiSend, FiMessageSquare, FiX, FiTrash2 } from 'react-icons/fi';
 import Link from 'next/link';
 import * as signalR from '@microsoft/signalr';
 import Cookies from 'js-cookie';
@@ -20,6 +20,7 @@ interface ApiMessage {
   message: string;
   sentAt: string;
   senderName: string;
+  isDeletedForAll?: boolean;
 }
 
 export default function ChatWidget({ productId, receiverId, receiverName }: ChatWidgetProps) {
@@ -60,6 +61,14 @@ export default function ChatWidget({ productId, receiverId, receiverName }: Chat
       }
     });
 
+    connection.on('MessageDeleted', (data: { chatMessageId: number }) => {
+      setMessages(prev => prev.map(m => 
+        m.chatMessageId === data.chatMessageId 
+          ? { ...m, message: "🚫 Bu mesaj silindi.", isDeletedForAll: true } 
+          : m
+      ));
+    });
+
     const startSignalR = async () => {
       try {
         await connection.start();
@@ -67,7 +76,7 @@ export default function ChatWidget({ productId, receiverId, receiverName }: Chat
           await connection.stop();
         } else {
           connectionRef.current = connection;
-          await connection.invoke('JoinProductChat', productId);
+          await connection.invoke('JoinProductChat', productId, receiverId);
         }
       } catch (error) {
         console.error('Chat SignalR bağlantı hatası:', error);
@@ -76,11 +85,12 @@ export default function ChatWidget({ productId, receiverId, receiverName }: Chat
 
     startSignalR();
     loadMessages();
+    markChatAsReadAPI(productId, receiverId);
 
     return () => {
       isMounted = false;
       if (connection.state === signalR.HubConnectionState.Connected) {
-        connection.invoke('LeaveProductChat', productId).catch(() => {});
+        connection.invoke('LeaveProductChat', productId, receiverId).catch(() => {});
         connection.stop();
       }
       connectionRef.current = null;
@@ -89,8 +99,16 @@ export default function ChatWidget({ productId, receiverId, receiverName }: Chat
 
   const loadMessages = async () => {
     try {
-      const data = await getChatMessagesAPI(productId);
-      setMessages(data);
+      const data = await getChatMessagesAPI(productId, receiverId);
+      const mappedData = data.map((m: any) => ({
+        chatMessageId: m.ChatMessageId || m.chatMessageId,
+        senderId: m.SenderId || m.senderId,
+        message: (m.IsDeletedForAll || m.isDeletedForAll) ? "🚫 Bu mesaj silindi." : (m.Message || m.message),
+        sentAt: m.SentAt || m.sentAt,
+        senderName: m.SenderName || m.senderName,
+        isDeletedForAll: m.IsDeletedForAll || m.isDeletedForAll || false
+      }));
+      setMessages(mappedData);
       scrollToBottom();
     } catch (error) {
       console.error('Mesajlar yüklenemedi:', error);
@@ -115,17 +133,41 @@ export default function ChatWidget({ productId, receiverId, receiverName }: Chat
     scrollToBottom();
 
     try {
-      await sendChatMessageAPI({
+      const realMsg = await sendChatMessageAPI({
         senderId: Number(user.id),
         receiverId,
         productId,
         message: tempMessage,
       });
+
+      const realSQLId = realMsg.chatMessageId || realMsg.ChatMessageId;
+      if (realSQLId) {
+        setMessages(prev => prev.map(m => 
+          m.chatMessageId === optimisticMsg.chatMessageId 
+            ? { ...m, chatMessageId: realSQLId } 
+            : m
+        ));
+      }
+
       await loadMessages();
     } catch (error) {
       console.error('Mesaj gönderilemedi:', error);
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleDeleteMessage = async (chatMessageId: number) => {
+    if (!window.confirm('Mesajı herkes için silmek istiyor musunuz?')) return;
+    try {
+      await deleteChatMessageAPI(chatMessageId);
+      setMessages(prev => prev.map(m => 
+        m.chatMessageId === chatMessageId 
+          ? { ...m, message: "🚫 Bu mesaj silindi.", isDeletedForAll: true } 
+          : m
+      ));
+    } catch (error) {
+      console.error('Mesaj silinemedi:', error);
     }
   };
 
@@ -136,9 +178,15 @@ export default function ChatWidget({ productId, receiverId, receiverName }: Chat
     }
   };
 
+  const isMyOwnListing = user && Number(user.id) === Number(receiverId);
+
   return (
     <>
-      {user ? (
+      {isMyOwnListing ? (
+        <div className="w-full flex items-center justify-center gap-2 bg-gray-100 text-gray-500 font-bold py-3 rounded-xl border border-gray-200 cursor-not-allowed select-none shadow-sm">
+          <span>🏡 Bu Sizin İlanınız</span>
+        </div>
+      ) : user ? (
         <button
           onClick={() => setIsOpen(true)}
           className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 shadow-md transition-all active:scale-95"
@@ -186,7 +234,7 @@ export default function ChatWidget({ productId, receiverId, receiverName }: Chat
                 const isMine = msg.senderId === Number(user?.id);
                 return (
                   <div key={idx} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] p-3 rounded-xl text-sm ${
+                    <div className={`relative max-w-[80%] p-3 rounded-xl text-sm ${
                       isMine
                         ? 'bg-blue-600 text-white rounded-br-sm'
                         : 'bg-white text-gray-800 rounded-bl-sm border border-gray-200 shadow-sm'
@@ -196,6 +244,15 @@ export default function ChatWidget({ productId, receiverId, receiverName }: Chat
                       <p className={`text-[10px] mt-1.5 ${isMine ? 'text-blue-200' : 'text-gray-400'}`}>
                         {new Date(msg.sentAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
                       </p>
+                      {isMine && !msg.isDeletedForAll && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteMessage(msg.chatMessageId); }}
+                          className="absolute -top-1 -right-1 p-1 bg-white text-red-500 rounded-full shadow-sm hover:bg-red-50 transition-colors"
+                          title="Mesajı sil"
+                        >
+                          <FiTrash2 className="text-xs" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

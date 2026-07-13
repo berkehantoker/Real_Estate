@@ -9,6 +9,7 @@ using Repositories;
 using Repositories.Abstract;
 using System.Linq;
 using System.Threading.Tasks;
+using System;
 
 namespace Real_Estate_Entity_Api.Controllers
 {
@@ -26,12 +27,16 @@ namespace Real_Estate_Entity_Api.Controllers
             _hubContext = hubContext;
         }
 
-        // İlana ait mesaj geçmişini getir
-        [HttpGet("{productId}")]
-        public async Task<IActionResult> GetMessages(int productId)
+        // İlana ve kişiye ait mesaj geçmişini getir
+        [HttpGet("{productId}/{otherUserId}")]
+        public async Task<IActionResult> GetMessages(int productId, int otherUserId)
         {
+            var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+
             var messages = await _context.ChatMessages
-                .Where(m => m.ProductId == productId)
+                .Where(m => m.ProductId == productId && 
+                            ((m.SenderId == userId && m.ReceiverId == otherUserId && !m.IsDeletedBySender) || 
+                             (m.SenderId == otherUserId && m.ReceiverId == userId && !m.IsDeletedByReceiver)))
                 .OrderBy(m => m.SentAt)
                 .Select(m => new
                 {
@@ -39,10 +44,11 @@ namespace Real_Estate_Entity_Api.Controllers
                     m.SenderId,
                     m.ReceiverId,
                     m.ProductId,
-                    m.Message,
+                    Message = m.IsDeletedForAll ? "🚫 Bu mesaj silindi." : m.Message,
                     m.SentAt,
                     m.IsRead,
-                    SenderName = m.Sender.Name
+                    SenderName = m.Sender.Name,
+                    IsDeletedForAll = m.IsDeletedForAll
                 })
                 .ToListAsync();
 
@@ -53,6 +59,11 @@ namespace Real_Estate_Entity_Api.Controllers
         [HttpPost]
         public async Task<IActionResult> SendMessage([FromBody] CreateChatMessageDto dto)
         {
+            if (dto.SenderId == dto.ReceiverId)
+            {
+                return BadRequest("Kendi ilanınıza veya kendinize mesaj gönderemezsiniz.");
+            }
+
             var message = new ChatMessage
             {
                 SenderId = dto.SenderId,
@@ -71,18 +82,25 @@ namespace Real_Estate_Entity_Api.Controllers
             // Bildirim datasına SenderId de ekliyoruz ki, mesajı atan kişi kendi ekranında kendi mesajını çift görmesin.
             var notificationData = new
             {
+                ChatMessageId = message.ChatMessageId,
                 ProductId = dto.ProductId,
                 SenderId = dto.SenderId,
                 ReceiverId = dto.ReceiverId,
                 SenderName = senderName,
                 Message = dto.Message,
-                SentAt = message.SentAt
+                SentAt = message.SentAt,
+                IsDeletedForAll = false
             };
 
-            // 1. Odaya dahil olanlar için "Canlı Sohbet" bildirimi (Açık ekrana anlık düşür)
-            await _hubContext.Clients.Group($"product_{dto.ProductId}").SendAsync("ReceiveChatMessage", notificationData);
+            // İki kullanıcının ID'sini sıralayarak benzersiz bir oda adı oluşturuyoruz
+            int minId = Math.Min(dto.SenderId, dto.ReceiverId);
+            int maxId = Math.Max(dto.SenderId, dto.ReceiverId);
+            string privateGroupName = $"chat_{dto.ProductId}_{minId}_{maxId}";
 
-            // 2. Mesajın asıl alıcısına (Sistemde online ise) özel global bildirim (Sol menüdeki sayaç için - Zero Trust!)
+            // 1. SADECE bu özel odaya canlı mesaj at (Başka müşteriler görmesin)
+            await _hubContext.Clients.Group(privateGroupName).SendAsync("ReceiveChatMessage", notificationData);
+
+            // 2. Global bildirim aynen kalıyor (Zero Trust - Sadece alıcıya)
             await _hubContext.Clients.Group($"user_{dto.ReceiverId}").SendAsync("NewMessageNotification", notificationData);
 
             Console.WriteLine($"🔔 Bildirim gönderildi! ReceiverId: {dto.ReceiverId}, Message: {dto.Message}");
@@ -108,6 +126,8 @@ namespace Real_Estate_Entity_Api.Controllers
 
             var allMessages = await _context.ChatMessages
                 .Where(m => m.SenderId == userId || m.ReceiverId == userId)
+                .Where(m => !m.IsDeletedForAll)
+                .Where(m => !(m.SenderId == userId && m.IsDeletedBySender) && !(m.ReceiverId == userId && m.IsDeletedByReceiver))
                 .Include(m => m.Sender)
                 .Include(m => m.Receiver)
                 .Include(m => m.Product)
@@ -121,9 +141,10 @@ namespace Real_Estate_Entity_Api.Controllers
                     ProductTitle = m.Product?.Title,
                     ContactUserId = m.SenderId == userId ? m.ReceiverId : m.SenderId,
                     ContactName = m.SenderId == userId ? m.Receiver?.Name : m.Sender?.Name,
-                    LastMessage = m.Message,
+                    LastMessage = m.IsDeletedForAll ? "🚫 Bu mesaj silindi." : m.Message,
                     m.SentAt,
-                    m.IsRead
+                    m.IsRead,
+                    LastMessageSenderId = m.SenderId
                 })
                 .Where(x => x.ContactUserId != userId && x.ContactName != null)
                 .GroupBy(x => new { x.ProductId, x.ContactUserId })
@@ -132,6 +153,79 @@ namespace Real_Estate_Entity_Api.Controllers
                 .ToList();
 
             return Ok(contacts);
+        }
+
+        // 1. Tekil Mesaj Silme (Herkes İçin Sil)
+        [HttpDelete("message/{chatMessageId}")]
+        public async Task<IActionResult> DeleteMessage(int chatMessageId)
+        {
+            var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var msg = await _context.ChatMessages.FindAsync(chatMessageId);
+            if (msg == null) return NotFound("Mesaj bulunamadı.");
+            if (msg.SenderId != userId) return BadRequest("Bu mesajı silme yetkiniz yok.");
+
+            // Eğer zaten silindiyse tekrar hata fırlatma, başarılı dön
+            if (msg.IsDeletedForAll) return Ok();
+
+            msg.IsDeletedForAll = true;
+            _context.ChatMessages.Update(msg);
+            await _context.SaveChangesAsync();
+
+            // Özel odaya (Müşteri ve Emlakçının ortak odasına) silindi sinyali gönder
+            int minId = Math.Min(msg.SenderId, msg.ReceiverId);
+            int maxId = Math.Max(msg.SenderId, msg.ReceiverId);
+            string privateGroupName = $"chat_{msg.ProductId}_{minId}_{maxId}";
+
+            await _hubContext.Clients.Group(privateGroupName).SendAsync("MessageDeleted", new { ChatMessageId = chatMessageId });
+
+            return Ok();
+        }
+
+        // Bir sohbete girildiğinde karşı taraftan gelen okunmamış mesajları kalıcı olarak okundu yap!
+        [HttpPost("mark-as-read/{productId}/{otherUserId}")]
+        public async Task<IActionResult> MarkAsRead(int productId, int otherUserId)
+        {
+            var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+
+            var unreadMessages = await _context.ChatMessages
+                .Where(m => m.ProductId == productId && 
+                            m.SenderId == otherUserId && 
+                            m.ReceiverId == userId && 
+                            !m.IsRead)
+                .ToListAsync();
+
+            if (unreadMessages.Any())
+            {
+                foreach (var msg in unreadMessages)
+                {
+                    msg.IsRead = true;
+                }
+                await _context.SaveChangesAsync();
+            }
+
+            return Ok();
+        }
+
+        // 2. Komple Sohbeti Temizle (Sadece Benden Sil)
+        [HttpDelete("conversation/{productId}/{otherUserId}")]
+        public async Task<IActionResult> DeleteConversation(int productId, int otherUserId)
+        {
+            var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+
+            var messages = await _context.ChatMessages
+                .Where(m => m.ProductId == productId && 
+                            ((m.SenderId == userId && m.ReceiverId == otherUserId) || 
+                             (m.SenderId == otherUserId && m.ReceiverId == userId)))
+                .ToListAsync();
+
+            foreach (var m in messages)
+            {
+                if (m.SenderId == userId) m.IsDeletedBySender = true;
+                if (m.ReceiverId == userId) m.IsDeletedByReceiver = true;
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok();
         }
     }
 }
