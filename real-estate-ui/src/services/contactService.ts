@@ -2,7 +2,7 @@ import axiosInstance from '../utils/axiosInstance';
 
 // Adminin tüm mesajları çekmesi için (GET /api/Contacts)
 export const getAllContactsAPI = async () => {
-  const response = await axiosInstance.get('/Contacts');
+  const response = await axiosInstance.get('/Contacts', { params: { PageSize: 1000 } });
   return response.data;
 };
 

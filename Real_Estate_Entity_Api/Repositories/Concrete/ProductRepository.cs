@@ -105,6 +105,7 @@ namespace Repositories.Concrete
 
             var items = await query
                 .Include(x => x.Category) 
+                .Include(x => x.AppUser)
                 .Skip((filter.PageNumber - 1) * filter.PageSize)
                 .Take(filter.PageSize)
                 .ToListAsync();

@@ -2,7 +2,7 @@ import axiosInstance from '../utils/axiosInstance';
 
 // Tüm Kullanıcıları Getir
 export const getAllUsersAPI = async () => {
-  const response = await axiosInstance.get('/Users');
+  const response = await axiosInstance.get('/Users', { params: { PageSize: 1000 } });
   return response.data;
 };
 

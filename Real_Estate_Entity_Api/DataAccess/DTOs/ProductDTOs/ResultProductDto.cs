@@ -17,5 +17,7 @@
 
         
         public string CategoryName { get; set; }
+        public string? AppUserName { get; set; }
+        public string? AppUserSurname { get; set; }
     }
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { getAllUsersAPI, deleteUserAPI, assignRoleAPI } from '../../../../services/userService';
-import { FiTrash2, FiShield, FiX, FiUserCheck } from 'react-icons/fi';
+import { FiTrash2, FiShield, FiX, FiUserCheck, FiSearch, FiChevronLeft, FiChevronRight, FiUsers } from 'react-icons/fi';
 
 interface AppUser {
   id: number;
@@ -22,6 +22,13 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
   const [newRole, setNewRole] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // ============================================================================
+  // YENİ STATE'LER: Arama ve Sayfalama
+  // ============================================================================
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -53,7 +60,7 @@ export default function UsersPage() {
 
   const openRoleModal = (user: AppUser) => {
     setSelectedUser(user);
-    setNewRole(user.role || 'User'); // Varsayılan rolü seçili getir
+    setNewRole(user.role || 'User');
     setIsModalOpen(true);
   };
 
@@ -72,7 +79,6 @@ export default function UsersPage() {
         userId: selectedUser.id,
         roleName: newRole
       });
-      // Başarılı olursa listeyi yenile
       await fetchUsers();
       closeRoleModal();
     } catch (error) {
@@ -82,68 +88,188 @@ export default function UsersPage() {
     }
   };
 
-  // Rol ismini Türkçeleştiren ve renk veren yardımcı fonksiyon
+  // ============================================================================
+  // ARAMA VE SAYFALAMA LOGIC'I
+  // ============================================================================
+  const filteredUsers = users.filter((user) => {
+    const searchLower = searchTerm.toLowerCase();
+    if (!searchLower) return true;
+    return (
+      user.name?.toLowerCase().includes(searchLower) ||
+      user.surname?.toLowerCase().includes(searchLower) ||
+      user.username?.toLowerCase().includes(searchLower) ||
+      user.email?.toLowerCase().includes(searchLower) ||
+      user.role?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+  const currentUsers = filteredUsers.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Avatar renk paleti (isme göre tutarlı renk)
+  const getAvatarColor = (name: string) => {
+    const colors = [
+      'from-blue-500 to-indigo-600',
+      'from-emerald-500 to-teal-600',
+      'from-violet-500 to-purple-600',
+      'from-orange-500 to-red-500',
+      'from-cyan-500 to-blue-600',
+      'from-pink-500 to-rose-600',
+      'from-amber-500 to-yellow-600',
+      'from-green-500 to-emerald-600',
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  };
+
+  // Rol rozeti
   const getRoleBadge = (role: string) => {
     switch (role) {
       case 'Admin':
-        return <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-bold flex items-center w-max gap-1"><FiShield/> Yönetici</span>;
+        return <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-bold flex items-center w-max gap-1 border border-purple-200"><FiShield className="w-3 h-3"/> Yönetici</span>;
       case 'EstateAgent':
-        return <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold flex items-center w-max gap-1"><FiUserCheck/> Emlak Danışmanı</span>;
+        return <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold flex items-center w-max gap-1 border border-blue-200"><FiUserCheck className="w-3 h-3"/> Emlak Danışmanı</span>;
       default:
-        return <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-bold flex items-center w-max gap-1">Müşteri (User)</span>;
+        return <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center w-max gap-1 border border-green-200">Müşteri</span>;
     }
   };
 
   return (
     <div className="max-w-7xl mx-auto pb-20">
       
-      <div className="mb-8">
-        <h2 className="text-3xl font-extrabold text-gray-900">Kullanıcı Yönetimi</h2>
-        <p className="text-gray-500 mt-1">Sisteme kayıtlı üyeleri görüntüleyin ve yetkilerini (Rollerini) ayarlayın.</p>
+      {/* ═══════════ ÜST BAR ═══════════ */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 bg-purple-50 rounded-xl flex items-center justify-center text-xl">
+            👥
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">Kullanıcı Yönetimi</h2>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="bg-purple-50 text-purple-700 font-bold text-sm px-3 py-1 rounded-full">
+                {filteredUsers.length} Kullanıcı
+              </span>
+              {searchTerm && (
+                <span className="text-xs text-gray-400">
+                  "{searchTerm}" için filtrelendi
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
+      {/* ═══════════ ARAMA KUTUSU ═══════════ */}
+      <div className="relative w-full max-w-md mb-6">
+        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+          <FiSearch className="text-gray-400 text-lg" />
+        </div>
+        <input
+          type="text"
+          placeholder="İsim, email, kullanıcı adı veya rol ara..."
+          value={searchTerm}
+          onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+          className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl shadow-sm text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100 transition-all placeholder:text-gray-400"
+        />
+        {searchTerm && (
+          <button
+            onClick={() => { setSearchTerm(''); setCurrentPage(1); }}
+            className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-red-500 transition-colors text-sm font-medium"
+          >
+            Temizle
+          </button>
+        )}
+      </div>
+
+      {/* ═══════════ KULLANICI TABLOSU ═══════════ */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
         {isLoading ? (
-          <div className="p-12 text-center text-gray-500 font-medium animate-pulse">Kullanıcılar yükleniyor...</div>
-        ) : users.length === 0 ? (
-          <div className="p-12 text-center text-gray-500 font-medium">Sistemde henüz kullanıcı bulunmuyor.</div>
+          <div className="p-12 text-center text-gray-500 font-medium">
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
+              <span>Kullanıcılar yükleniyor...</span>
+            </div>
+          </div>
+        ) : currentUsers.length === 0 ? (
+          <div className="p-16 text-center">
+            <div className="text-gray-300 mb-4 text-6xl flex justify-center">
+              {searchTerm ? <FiSearch /> : <FiUsers />}
+            </div>
+            <h3 className="text-xl font-bold text-gray-700 mb-2">
+              {searchTerm ? 'Sonuç Bulunamadı' : 'Henüz Kullanıcı Yok'}
+            </h3>
+            <p className="text-gray-500 mb-6 max-w-md mx-auto">
+              {searchTerm
+                ? `"${searchTerm}" kriterine uygun kullanıcı bulunamadı.`
+                : 'Sisteme henüz hiç kullanıcı kaydolmamış.'}
+            </p>
+            {searchTerm && (
+              <button
+                onClick={() => { setSearchTerm(''); setCurrentPage(1); }}
+                className="text-purple-600 font-bold hover:underline"
+              >
+                Aramayı Temizle
+              </button>
+            )}
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="p-5 font-bold text-gray-700">Kullanıcı</th>
-                  <th className="p-5 font-bold text-gray-700">Kullanıcı Adı</th>
-                  <th className="p-5 font-bold text-gray-700">Mevcut Yetki (Rol)</th>
-                  <th className="p-5 font-bold text-gray-700 text-right">İşlemler</th>
+                  <th className="p-5 font-bold text-gray-600 text-sm uppercase tracking-wider">Kullanıcı</th>
+                  <th className="p-5 font-bold text-gray-600 text-sm uppercase tracking-wider">Kullanıcı Adı</th>
+                  <th className="p-5 font-bold text-gray-600 text-sm uppercase tracking-wider">E-Posta</th>
+                  <th className="p-5 font-bold text-gray-600 text-sm uppercase tracking-wider">Rol</th>
+                  <th className="p-5 font-bold text-gray-600 text-sm uppercase tracking-wider text-right">İşlemler</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {users.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                {currentUsers.map((user, idx) => (
+                  <tr key={user.id} className={`transition-colors hover:bg-gray-50/80 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
                     <td className="p-5">
-                      <div className="font-bold text-gray-900">{user.name} {user.surname}</div>
-                      <div className="text-sm text-gray-500">{user.email}</div>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${getAvatarColor(user.name + user.surname)} flex items-center justify-center text-white font-bold text-sm shadow-sm flex-shrink-0`}>
+                          {user.name?.charAt(0).toUpperCase()}{user.surname?.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="font-bold text-gray-900">{user.name} {user.surname}</div>
+                        </div>
+                      </div>
                     </td>
-                    <td className="p-5 font-medium text-gray-700">@{user.username}</td>
+                    <td className="p-5 font-medium text-gray-600">@{user.username}</td>
+                    <td className="p-5 text-gray-500 text-sm">{user.email}</td>
                     <td className="p-5">
                       {getRoleBadge(user.role)}
                     </td>
-                    <td className="p-5 flex items-center justify-end gap-3">
-                      <button 
-                        onClick={() => openRoleModal(user)}
-                        className="flex items-center gap-2 px-3 py-1.5 text-sm font-bold text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-600 hover:text-white transition-colors"
-                        title="Yetkisini Değiştir"
-                      >
-                        <FiShield /> Rol Ata
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(user.id, user.name, user.surname)}
-                        className="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-600 hover:text-white transition-colors"
-                        title="Kullanıcıyı Sil"
-                      >
-                        <FiTrash2 />
-                      </button>
+                    <td className="p-5">
+                      <div className="flex items-center justify-end gap-2">
+                        <button 
+                          onClick={() => openRoleModal(user)}
+                          className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-600 hover:text-white transition-all border border-blue-100"
+                          title="Yetkisini Değiştir"
+                        >
+                          <FiShield className="text-sm" /> Rol Ata
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(user.id, user.name, user.surname)}
+                          className="p-2 text-red-500 bg-red-50 rounded-lg hover:bg-red-600 hover:text-white transition-all border border-red-100"
+                          title="Kullanıcıyı Sil"
+                        >
+                          <FiTrash2 className="text-sm" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -153,7 +279,43 @@ export default function UsersPage() {
         )}
       </div>
 
-      {/* --- ROL DEĞİŞTİRME MODALI --- */}
+      {/* ═══════════ SAYFALAMA ═══════════ */}
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-2 mt-6 pb-4">
+          <button
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="p-2.5 bg-white rounded-xl shadow-sm border border-gray-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-purple-50 hover:text-purple-600 hover:border-purple-200 transition-all"
+          >
+            <FiChevronLeft className="text-lg" />
+          </button>
+          {[...Array(totalPages)].map((_, i) => {
+            const page = i + 1;
+            return (
+              <button
+                key={page}
+                onClick={() => handlePageChange(page)}
+                className={`w-10 h-10 rounded-xl font-extrabold text-sm shadow-sm border transition-all ${
+                  currentPage === page
+                    ? 'bg-purple-600 text-white border-purple-600 scale-110 shadow-purple-200'
+                    : 'bg-white text-gray-600 border-gray-200 hover:bg-purple-50 hover:text-purple-600 hover:border-purple-200'
+                }`}
+              >
+                {page}
+              </button>
+            );
+          })}
+          <button
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className="p-2.5 bg-white rounded-xl shadow-sm border border-gray-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-purple-50 hover:text-purple-600 hover:border-purple-200 transition-all"
+          >
+            <FiChevronRight className="text-lg" />
+          </button>
+        </div>
+      )}
+
+      {/* --- ROL DEĞİŞTİRME MODALI (KORUNDU) --- */}
       {isModalOpen && selectedUser && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-fadeIn">
@@ -176,7 +338,7 @@ export default function UsersPage() {
                 <select 
                   value={newRole}
                   onChange={(e) => setNewRole(e.target.value)}
-                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-blue-500 transition-colors"
+                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-purple-500 transition-colors"
                 >
                   <option value="User">Müşteri (Sadece İlanlara Bakabilir)</option>
                   <option value="EstateAgent">Emlak Danışmanı (İlan Ekleyebilir)</option>
@@ -188,7 +350,7 @@ export default function UsersPage() {
                 <button type="button" onClick={closeRoleModal} className="px-5 py-2.5 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition-colors">
                   İptal
                 </button>
-                <button type="submit" disabled={isSubmitting} className="px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-md transition-colors disabled:opacity-50">
+                <button type="submit" disabled={isSubmitting} className="px-5 py-2.5 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 shadow-md transition-colors disabled:opacity-50">
                   {isSubmitting ? 'Kaydediliyor...' : 'Rolü Güncelle'}
                 </button>
               </div>

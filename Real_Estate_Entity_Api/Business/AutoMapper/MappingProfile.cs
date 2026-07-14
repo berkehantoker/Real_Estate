@@ -32,7 +32,11 @@ namespace Business
             // Resimler için liste çevirisi biraz farklıdır, onu aşağıda manuel bırakmak daha sağlıklıdır.
             CreateMap<Product, UpdateProductDto>().ReverseMap();
 
-            CreateMap<Product, ResultProductDto>().ReverseMap();
+            CreateMap<Product, ResultProductDto>()
+                .ForMember(dest => dest.CategoryName, opt => opt.MapFrom(src => src.Category != null ? src.Category.CategoryName : null))
+                .ForMember(dest => dest.AppUserName, opt => opt.MapFrom(src => src.AppUser != null ? src.AppUser.Name : null))
+                .ForMember(dest => dest.AppUserSurname, opt => opt.MapFrom(src => src.AppUser != null ? src.AppUser.Surname : null))
+                .ReverseMap();
 
 
             // WhoWeAreDetail

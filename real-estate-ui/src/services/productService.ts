@@ -18,13 +18,13 @@ export const getAllProductsAPI = async () => {
 
 // Admin İçin Detaylı Tüm İlanlar Listesi (Kategori ve Kullanıcı bilgisiyle)
 export const getAllProductsWithDetailsAPI = async () => {
-  const response = await axiosInstance.get('/Products'); 
+  const response = await axiosInstance.get('/Products', { params: { PageSize: 1000 } }); 
   return response.data?.items || response.data?.$values || response.data || [];
 };
 
 // Emlakçının Sadece Kendi İlanlarını Getirmesi
 export const getMyProductsAPI = async (userId: number) => {
-  const response = await axiosInstance.get('/Products', { params: { AppUserId: userId } });
+  const response = await axiosInstance.get('/Products', { params: { AppUserId: userId, PageSize: 1000 } });
   return response.data?.items || response.data?.$values || response.data || [];
 };
 
