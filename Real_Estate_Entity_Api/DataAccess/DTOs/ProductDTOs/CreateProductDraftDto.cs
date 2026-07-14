@@ -16,6 +16,8 @@ namespace DataAccess.DTOs.ProductDTOs
         public string Type { get; set; }
         public int CategoryId { get; set; }
 
+        public string CoverImage { get; set; }
+
         [JsonIgnore]
         public int AppUserId { get; set; }
     }

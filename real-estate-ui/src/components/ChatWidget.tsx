@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { getChatMessagesAPI, sendChatMessageAPI, deleteChatMessageAPI, markChatAsReadAPI } from '@/services/chatService';
-import { FiSend, FiMessageSquare, FiX, FiTrash2 } from 'react-icons/fi';
+import { FiSend, FiMessageSquare, FiX, FiTrash2, FiCheck, FiRefreshCw } from 'react-icons/fi';
 import Link from 'next/link';
 import * as signalR from '@microsoft/signalr';
 import Cookies from 'js-cookie';
+import toast from 'react-hot-toast';
 
 interface ChatWidgetProps {
   productId: number;
@@ -31,6 +32,8 @@ export default function ChatWidget({ productId, receiverId, receiverName }: Chat
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const connectionRef = useRef<signalR.HubConnection | null>(null);
+
+  const [messageToDelete, setMessageToDelete] = useState<number | null>(null);
 
   const scrollToBottom = () => {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
@@ -61,9 +64,10 @@ export default function ChatWidget({ productId, receiverId, receiverName }: Chat
       }
     });
 
-    connection.on('MessageDeleted', (data: { chatMessageId: number }) => {
+    connection.on('MessageDeleted', (data: any) => {
+      const targetId = data.ChatMessageId || data.chatMessageId;
       setMessages(prev => prev.map(m => 
-        m.chatMessageId === data.chatMessageId 
+        m.chatMessageId === targetId 
           ? { ...m, message: "🚫 Bu mesaj silindi.", isDeletedForAll: true } 
           : m
       ));
@@ -152,13 +156,13 @@ export default function ChatWidget({ productId, receiverId, receiverName }: Chat
       await loadMessages();
     } catch (error) {
       console.error('Mesaj gönderilemedi:', error);
+      toast.error("Mesaj gönderilemedi! Lütfen bağlantınızı kontrol edin.");
     } finally {
       setIsSending(false);
     }
   };
 
   const handleDeleteMessage = async (chatMessageId: number) => {
-    if (!window.confirm('Mesajı herkes için silmek istiyor musunuz?')) return;
     try {
       await deleteChatMessageAPI(chatMessageId);
       setMessages(prev => prev.map(m => 
@@ -166,9 +170,12 @@ export default function ChatWidget({ productId, receiverId, receiverName }: Chat
           ? { ...m, message: "🚫 Bu mesaj silindi.", isDeletedForAll: true } 
           : m
       ));
+      toast.success("Mesaj silindi.");
     } catch (error) {
       console.error('Mesaj silinemedi:', error);
+      toast.error("Mesaj silinemedi.");
     }
+    setMessageToDelete(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -217,9 +224,14 @@ export default function ChatWidget({ productId, receiverId, receiverName }: Chat
                   <p className="text-xs text-blue-100">Emlak Danışmanı</p>
                 </div>
               </div>
-              <button onClick={() => setIsOpen(false)} className="text-white/70 hover:text-white transition-colors p-1">
-                <FiX className="text-xl" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button onClick={loadMessages} title="Yenile" className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                  <FiRefreshCw className="text-sm" />
+                </button>
+                <button onClick={() => setIsOpen(false)} className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+                  <FiX className="text-lg" />
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
@@ -233,7 +245,7 @@ export default function ChatWidget({ productId, receiverId, receiverName }: Chat
               {messages.map((msg, idx) => {
                 const isMine = msg.senderId === Number(user?.id);
                 return (
-                  <div key={idx} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                  <div key={idx} className={`flex ${isMine ? 'justify-end' : 'justify-start'} group/message relative`}>
                     <div className={`relative max-w-[80%] p-3 rounded-xl text-sm ${
                       isMine
                         ? 'bg-blue-600 text-white rounded-br-sm'
@@ -246,12 +258,23 @@ export default function ChatWidget({ productId, receiverId, receiverName }: Chat
                       </p>
                       {isMine && !msg.isDeletedForAll && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); handleDeleteMessage(msg.chatMessageId); }}
-                          className="absolute -top-1 -right-1 p-1 bg-white text-red-500 rounded-full shadow-sm hover:bg-red-50 transition-colors"
-                          title="Mesajı sil"
+                          onClick={(e) => { e.stopPropagation(); setMessageToDelete(messageToDelete === msg.chatMessageId ? null : msg.chatMessageId); }}
+                          className="absolute -top-2 -right-2 p-1.5 bg-white text-red-400 rounded-full shadow-sm opacity-0 group-hover/message:opacity-100 hover:bg-red-50 hover:text-red-600 transition-all"
+                          title="Herkes için sil"
                         >
                           <FiTrash2 className="text-xs" />
                         </button>
+                      )}
+                      {messageToDelete === msg.chatMessageId && (
+                        <div className="mt-2 pt-2 border-t border-white/20 flex items-center gap-2">
+                          <span className="text-[10px] text-white/70">Herkes için sil?</span>
+                          <button onClick={(e) => { e.stopPropagation(); handleDeleteMessage(msg.chatMessageId); }} className="px-2 py-0.5 bg-emerald-500 text-white text-[10px] font-bold rounded hover:bg-emerald-600">
+                            <FiCheck className="w-3 h-3 inline" /> Evet
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); setMessageToDelete(null); }} className="px-2 py-0.5 bg-red-400 text-white text-[10px] font-bold rounded hover:bg-red-500">
+                            <FiX className="w-3 h-3 inline" /> İptal
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>

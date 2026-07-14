@@ -136,62 +136,62 @@ export default function EditProductPage() {
     if (params.id) fetchData();
   }, [params.id, user]);
 
-  // Şehir değişince ilçeleri async yükle, ilçe ve mahalleyi sıfırla
+    // Şehir değişince ilçeleri async yükle, ilçe ve mahalleyi sıfırla
   const handleCityChange = async (city: string) => {
     setSelectedCity(city);
     setSelectedDistrict('');
     setSelectedNeighborhood('');
     setDistricts([]);
     setNeighborhoods([]);
-    setFormData({ ...formData, city, district: '', neighborhood: '' });
+    
+    // prev ile form verilerini güvenceye alıyoruz
+    setFormData(prev => ({ ...prev, city, district: '', neighborhood: '' }));
+    
     if (city) {
       const d = await getDistrictsByCity(city);
       setDistricts(d);
     }
   };
 
+  // İlçe değişince mahalleleri async yükle, mahalleyi sıfırla
   const handleDistrictChange = async (district: string) => {
     setSelectedDistrict(district);
     setSelectedNeighborhood('');
     setNeighborhoods([]);
-    setFormData({ ...formData, district, neighborhood: '' });
-    if (formData.city && district) {
-      const n = await getNeighborhoodsByDistrict(formData.city, district);
+    
+    // prev ile form verilerini koruyoruz
+    setFormData(prev => ({ ...prev, district, neighborhood: '' }));
+    
+    if (selectedCity && district) {
+      const n = await getNeighborhoodsByDistrict(selectedCity, district);
       setNeighborhoods(n);
     }
   };
 
+  // Mahalle değişince otomatik pinleme fonksiyonunuz (Burası zaten düzgündü)
   const handleNeighborhoodChange = async (neighborhood: string) => {
-  // 1. Tüm state'leri aynı anda güncelleyelim
-  setSelectedNeighborhood(neighborhood);
-  setFormData(prev => ({ ...prev, neighborhood }));
+    setSelectedNeighborhood(neighborhood);
+    setFormData(prev => ({ ...prev, neighborhood }));
 
-  // 2. State'in güncellenmesini beklemeden, elimizdeki güncel değişkenleri kullanalim
-  // formData.city yerine seçili olan selectedCity'yi, district yerine selectedDistrict'i veriyoruz
-  if (selectedCity && selectedDistrict && neighborhood) {
-    try {
-      const coords = await geocodeAddress(selectedCity, selectedDistrict, neighborhood);
-      
-      if (coords && coords.lat && coords.lng) {
-        // Koordinatları güvenli bir şekilde state'e yazıyoruz
-        setFormData(prev => ({ 
-          ...prev, 
-          latitude: coords.lat, 
-          longitude: coords.lng 
-        }));
-      } else {
-        console.warn('Konum bilgisi alınamadı. Lütfen haritayı manuel olarak konumlandırın.');
+    if (selectedCity && selectedDistrict && neighborhood) {
+      try {
+        const coords = await geocodeAddress(selectedCity, selectedDistrict, neighborhood);
+        if (coords && coords.lat && coords.lng) {
+          setFormData(prev => ({ ...prev, latitude: coords.lat, longitude: coords.lng }));
+        } else {
+          console.warn('Konum bilgisi alınamadı. Lütfen haritayı manuel olarak konumlandırın.');
+        }
+      } catch (error) {
+        console.error('Geocoding işlemi sırasında hata oluştu:', error);
       }
-    } catch (error) {
-      console.error('Geocoding işlemi sırasında hata oluştu:', error);
     }
-  }
-};
-
-
-  const handleLocationChange = (lat: number, lng: number) => {
-    setFormData({ ...formData, latitude: lat, longitude: lng });
   };
+
+  // Haritadan pin manuel sürüklendiğinde inputların ezilmesini önleyen kritik fix
+  const handleLocationChange = (lat: number, lng: number) => {
+    setFormData(prev => ({ ...prev, latitude: lat, longitude: lng }));
+  };
+
 
   const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

@@ -73,14 +73,17 @@ export default function AddProductWizard() {
     getAllCategoriesAPI().then(data => setCategories(data)).catch(() => {});
   }, []);
 
-  // Şehir değişince ilçeleri async yükle, ilçe ve mahalleyi sıfırla
+    // Şehir değişince ilçeleri async yükle, ilçe ve mahalleyi sıfırla
   const handleCityChange = async (city: string) => {
     setSelectedCity(city);
     setSelectedDistrict('');
     setSelectedNeighborhood('');
     setDistricts([]);
     setNeighborhoods([]);
-    setBasicInfo({ ...basicInfo, city, district: '', neighborhood: '' });
+    
+    // prev kullanarak kullanıcının yazdığı title, price vb. alanları koruyoruz
+    setBasicInfo(prev => ({ ...prev, city, district: '', neighborhood: '' }));
+    
     if (city) {
       const d = await getDistrictsByCity(city);
       setDistricts(d);
@@ -92,32 +95,41 @@ export default function AddProductWizard() {
     setSelectedDistrict(district);
     setSelectedNeighborhood('');
     setNeighborhoods([]);
-    setBasicInfo({ ...basicInfo, district, neighborhood: '' });
+    
+    // prev kullanarak taze state durumunu güvenceye alıyoruz
+    setBasicInfo(prev => ({ ...prev, district, neighborhood: '' }));
+    
     if (selectedCity && district) {
       const n = await getNeighborhoodsByDistrict(selectedCity, district);
       setNeighborhoods(n);
     }
   };
 
-  // Mahalle değişince basicInfo'yu güncelle
+  // Mahalle değişince hem basicInfo'yu günceller hem de harita pinini otomatik kaydırır
   const handleNeighborhoodChange = async (neighborhood: string) => {
     setSelectedNeighborhood(neighborhood);
     setBasicInfo(prev => ({ ...prev, neighborhood }));
 
     // Otomatik geocode - adresi koordinata çevir
     if (selectedCity && selectedDistrict && neighborhood) {
-      const coords = await geocodeAddress(selectedCity, selectedDistrict, neighborhood);
-      if (coords) {
-        setBasicInfo(prev => ({ ...prev, latitude: coords.lat, longitude: coords.lng }));
-      } else {
-        console.warn('Konum bilgisi alınamadı. Lütfen haritayı manuel olarak konumlandırın.');
+      try {
+        const coords = await geocodeAddress(selectedCity, selectedDistrict, neighborhood);
+        if (coords && coords.lat && coords.lng) {
+          setBasicInfo(prev => ({ ...prev, latitude: coords.lat, longitude: coords.lng }));
+        } else {
+          console.warn('Konum bilgisi alınamadı. Lütfen haritayı manuel olarak konumlandırın.');
+        }
+      } catch (error) {
+        console.error('Geocoding işlemi sırasında hata oluştu:', error);
       }
     }
   };
 
+  // Haritadan pin manuel sürüklendiğinde input verilerinin silinmesini önleyen kritik fix
   const handleLocationChange = (lat: number, lng: number) => {
-    setBasicInfo({ ...basicInfo, latitude: lat, longitude: lng });
+    setBasicInfo(prev => ({ ...prev, latitude: lat, longitude: lng }));
   };
+
 
   const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

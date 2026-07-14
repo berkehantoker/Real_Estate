@@ -25,6 +25,7 @@ namespace Repositories.Concrete
         public async Task<Product?> GetProductWithDetailsAsync(int id)
         {
             return await _context.Products
+                .Include(p => p.Category)
                 .Include(p => p.ProductDetail)
                 .Include(p => p.ProductImages)
                 .Include(p => p.ProductAmenities).ThenInclude(pa => pa.Amenity)
