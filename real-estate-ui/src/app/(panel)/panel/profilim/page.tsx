@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../../../../store/useAuthStore';
 import { getAgentDetailAPI, createAgentDetailAPI, updateAgentDetailAPI } from '../../../../services/agentDetailService';
+import toast from 'react-hot-toast';
 import { uploadImageAPI } from '../../../../services/productService'; // Resim yüklemek için mevcut servisimizi kullanıyoruz
 import { FiSave, FiImage, FiFacebook, FiTwitter, FiInstagram, FiPhone } from 'react-icons/fi';
 
@@ -82,14 +83,14 @@ export default function ProfileSettingsPage() {
 
       if (isUpdateMode) {
         await updateAgentDetailAPI(payload);
-        alert("Profiliniz başarıyla güncellendi!");
+        toast.success("Profiliniz başarıyla güncellendi!");
       } else {
         await createAgentDetailAPI(payload);
         setIsUpdateMode(true); // Artık güncelleme moduna geç
-        alert("Profiliniz başarıyla oluşturuldu!");
+        toast.success("Profiliniz başarıyla oluşturuldu!");
       }
     } catch (error) {
-      alert("Profil kaydedilirken bir hata oluştu.");
+      toast.error("Profil kaydedilirken bir hata oluştu.");
     } finally {
       setIsSaving(false);
     }

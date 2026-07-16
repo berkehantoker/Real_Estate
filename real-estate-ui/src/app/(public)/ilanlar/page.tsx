@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getProductsAPI } from '../../../services/productService';
 import { getAllCategoriesAPI } from '../../../services/categoryService';
+import { getMyFavoriteIdsAPI } from '../../../services/favoriteService';
 import ProductCard from '../../../components/ProductCard';
 import { FiSearch, FiFilter, FiChevronLeft, FiChevronRight, FiMapPin, FiHome, FiRefreshCw, FiSliders } from 'react-icons/fi';
 import SearchableDropdown from '../../../components/SearchableDropdown';
@@ -44,6 +45,7 @@ export default function ProductsPage() {
     pageSize: 9
   });
 
+  const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
   const [cities, setCities] = useState<string[]>([]);
   const [filterDistricts, setFilterDistricts] = useState<string[]>([]);
   const [filterNeighborhoods, setFilterNeighborhoods] = useState<string[]>([]);
@@ -79,8 +81,12 @@ export default function ProductsPage() {
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const cats = await getAllCategoriesAPI();
+        const [cats, ids] = await Promise.all([
+          getAllCategoriesAPI(),
+          getMyFavoriteIdsAPI()
+        ]);
         setCategories(cats);
+        setFavoriteIds(ids);
         await fetchProducts(filters);
       } catch (error) {
         console.error("Veri yükleme hatası", error);
@@ -126,6 +132,14 @@ export default function ProductsPage() {
     setFilters(newFilters);
     fetchProducts(newFilters);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleFavoriteToggle = (productId: number) => {
+    setFavoriteIds(prev => 
+      prev.includes(productId) 
+        ? prev.filter(id => id !== productId) 
+        : [...prev, productId]
+    );
   };
 
   const handleAmenityToggle = (amenityId: number) => {
@@ -361,7 +375,12 @@ export default function ProductsPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {products.map((product: any) => (
-                  <ProductCard key={product.productId} product={product} />
+                  <ProductCard
+                    key={product.productId}
+                    product={product}
+                    isFavorite={favoriteIds.includes(product.productId)}
+                    onFavoriteToggle={handleFavoriteToggle}
+                  />
                 ))}
               </div>
             )}

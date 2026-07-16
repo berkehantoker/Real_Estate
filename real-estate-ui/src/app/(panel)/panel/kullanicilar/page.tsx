@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getAllUsersAPI, deleteUserAPI, assignRoleAPI } from '../../../../services/userService';
 import { FiTrash2, FiShield, FiX, FiUserCheck, FiSearch, FiChevronLeft, FiChevronRight, FiUsers } from 'react-icons/fi';
+import toast from 'react-hot-toast';
 
 interface AppUser {
   id: number;
@@ -37,7 +38,7 @@ export default function UsersPage() {
       setUsers(data);
     } catch (error) {
       console.error("Kullanıcılar yüklenemedi", error);
-      alert("Kullanıcı listesi yüklenirken bir hata oluştu.");
+      toast.error("Kullanıcı listesi yüklenirken bir hata oluştu.");
     } finally {
       setIsLoading(false);
     }
@@ -53,7 +54,7 @@ export default function UsersPage() {
         await deleteUserAPI(id);
         setUsers(prev => prev.filter(u => u.id !== id));
       } catch (error) {
-        alert("Kullanıcı silinemedi. Lütfen tekrar deneyin.");
+        toast.error("Kullanıcı silinemedi. Lütfen tekrar deneyin.");
       }
     }
   };
@@ -82,7 +83,7 @@ export default function UsersPage() {
       await fetchUsers();
       closeRoleModal();
     } catch (error) {
-      alert("Rol güncellenirken bir hata oluştu.");
+      toast.error("Rol güncellenirken bir hata oluştu.");
     } finally {
       setIsSubmitting(false);
     }

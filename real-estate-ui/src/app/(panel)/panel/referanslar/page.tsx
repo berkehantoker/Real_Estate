@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { getAllTestimonialsAPI, createTestimonialAPI, updateTestimonialAPI, deleteTestimonialAPI } from '../../../../services/testimonialService';
 import { FiPlus, FiEdit2, FiTrash2, FiX, FiCheckCircle, FiXCircle } from 'react-icons/fi';
 
@@ -74,7 +75,7 @@ export default function TestimonialsPage() {
       await fetchTestimonials();
       closeModal();
     } catch (error: any) {
-      alert("İşlem başarısız: " + (error.response?.data || error.message));
+      toast.error("İşlem başarısız: " + (error.response?.data || error.message));
     } finally {
       setIsSubmitting(false);
     }
@@ -86,7 +87,7 @@ export default function TestimonialsPage() {
         await deleteTestimonialAPI(id);
         setTestimonials(prev => prev.filter(t => t.testimonialId !== id));
       } catch (error) {
-        alert("Silme işlemi başarısız oldu.");
+        toast.error("Silme işlemi başarısız oldu.");
       }
     }
   };

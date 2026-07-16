@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { getMyProductsAPI, deleteProductAPI } from '@/services/productService';
 import { FiEdit, FiTrash2, FiEye, FiPlus, FiSearch, FiMapPin, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import Link from 'next/link';
+import toast from 'react-hot-toast';
 
 export default function MyProductsPage() {
   const { user } = useAuthStore();
@@ -47,7 +48,7 @@ export default function MyProductsPage() {
         // Silme başarılıysa listeyi güncelle
         setProducts(products.filter((p: any) => p.id !== id));
       } catch (error) {
-        alert('İlan silinirken bir hata oluştu.');
+        toast.error('İlan silinirken bir hata oluştu.');
       }
     }
   };

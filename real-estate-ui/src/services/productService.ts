@@ -11,8 +11,10 @@ export const getProductWithDetailsAPI = async (id: number) => {
 };
 
 // Standart İlan Listesi
-export const getAllProductsAPI = async () => {
-  const response = await axiosInstance.get('/Products');
+export const getAllProductsAPI = async (pageSize?: number) => {
+  const params: any = {};
+  if (pageSize) params.PageSize = pageSize;
+  const response = await axiosInstance.get('/Products', { params });
   return response.data?.items || response.data?.$values || response.data || [];
 };
 

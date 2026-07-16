@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { FiSearch, FiHome, FiArrowRight, FiChevronDown, FiMapPin } from 'react-icons/fi';
 
@@ -8,6 +8,14 @@ export default function Hero() {
   const router = useRouter();
   const [location, setLocation] = useState('');
   const [type, setType] = useState('');
+  const [stats, setStats] = useState({ activeProducts: 0, totalUsers: 0 });
+
+  useEffect(() => {
+    fetch('https://localhost:7252/api/Statistics/public')
+      .then(r => r.json())
+      .then(d => setStats({ activeProducts: d.activeProducts || 0, totalUsers: d.totalUsers || 0 }))
+      .catch(() => {});
+  }, []);
 
   const handleSearch = () => {
     const params = new URLSearchParams();
@@ -91,14 +99,19 @@ export default function Hero() {
           </div>
         </div>
 
+        {/* Dinamik İstatistikler */}
         <div className="flex justify-center gap-8 md:gap-16 mt-12">
           <div className="text-center">
-            <p className="text-3xl md:text-4xl font-extrabold text-white">500+</p>
+            <p className="text-3xl md:text-4xl font-extrabold text-white">
+              {stats.activeProducts > 0 ? `${stats.activeProducts.toLocaleString('tr-TR')}+` : '...'}
+            </p>
             <p className="text-blue-200 text-sm font-semibold mt-1">Aktif İlan</p>
           </div>
           <div className="w-px bg-white/20"></div>
           <div className="text-center">
-            <p className="text-3xl md:text-4xl font-extrabold text-white">1,200+</p>
+            <p className="text-3xl md:text-4xl font-extrabold text-white">
+              {stats.totalUsers > 0 ? `${stats.totalUsers.toLocaleString('tr-TR')}+` : '...'}
+            </p>
             <p className="text-blue-200 text-sm font-semibold mt-1">Mutlu Müşteri</p>
           </div>
           <div className="w-px bg-white/20"></div>

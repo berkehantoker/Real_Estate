@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { getAllBottomGridsAPI, createBottomGridAPI, updateBottomGridAPI, deleteBottomGridAPI } from '../../../../services/bottomGridService';
 import { FiPlus, FiEdit2, FiTrash2, FiX } from 'react-icons/fi';
 
@@ -68,7 +69,7 @@ export default function BottomGridsPage() {
       await fetchBottomGrids();
       closeModal();
     } catch (error: any) {
-      alert("İşlem başarısız: " + (error.response?.data || error.message));
+      toast.error("İşlem başarısız: " + (error.response?.data || error.message));
     } finally {
       setIsSubmitting(false);
     }
@@ -80,7 +81,7 @@ export default function BottomGridsPage() {
         await deleteBottomGridAPI(id);
         setBottomGrids(prev => prev.filter(g => g.bottomGridId !== id));
       } catch (error) {
-        alert("Silme işlemi başarısız oldu.");
+        toast.error("Silme işlemi başarısız oldu.");
       }
     }
   };

@@ -11,6 +11,7 @@ import {
 } from '@/services/productService';
 import { FiCheckCircle, FiChevronRight, FiChevronLeft, FiUploadCloud, FiImage, FiMapPin, FiNavigation } from 'react-icons/fi';
 import { geocodeAddress } from '@/utils/geocode';
+import toast from 'react-hot-toast';
 import { getCities, getDistrictsByCity, getNeighborhoodsByDistrict } from '@/constants/locations';
 import SearchableDropdown from '@/components/SearchableDropdown';
 
@@ -199,7 +200,7 @@ export default function AddProductWizard() {
 
     } catch (error) {
       console.error(error);
-      alert('İlan kaydedilirken bir hata oluştu.');
+      toast.error('İlan kaydedilirken bir hata oluştu.');
       setIsSubmitting(false);
     }
   };

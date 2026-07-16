@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { 
   getCategoriesAPI, 
   createCategoryAPI, 
@@ -42,7 +43,7 @@ export default function CategoriesPage() {
       setCategories(data);
     } catch (error) {
       console.error("Kategoriler yüklenemedi", error);
-      alert("Kategoriler yüklenirken bir hata oluştu.");
+      toast.error("Kategoriler yüklenirken bir hata oluştu.");
     } finally {
       setIsLoading(false);
     }
@@ -106,7 +107,7 @@ export default function CategoriesPage() {
       closeModal();
       
     } catch (error: any) {
-      alert("İşlem sırasında bir hata oluştu: " + (error.response?.data || error.message));
+      toast.error("İşlem sırasında bir hata oluştu: " + (error.response?.data || error.message));
     } finally {
       setIsSubmitting(false);
     }
@@ -120,7 +121,7 @@ export default function CategoriesPage() {
         // Listeden silineni çıkar (API'ye tekrar istek atmadan UI'ı günceller)
         setCategories(prev => prev.filter(c => c.categoryId !== id));
       } catch (error) {
-        alert("Silme işlemi başarısız oldu.");
+        toast.error("Silme işlemi başarısız oldu.");
       }
     }
   };

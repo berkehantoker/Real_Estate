@@ -33,6 +33,19 @@ namespace Real_Estate_Entity_Api.Controllers
             return Ok(values);
         }
 
+        [HttpGet("my-favorite-ids")]
+        public async Task<IActionResult> GetMyFavoriteIds()
+        {
+            var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdString)) return Unauthorized("Kullanıcı kimliği bulunamadı.");
+
+            int userId = int.Parse(userIdString);
+            var values = await _service.GetUserFavoritesAsync(userId);
+
+            var ids = values.Select(f => f.ProductId).ToList();
+            return Ok(ids);
+        }
+
         [HttpPost("toggle")]
         public async Task<IActionResult> ToggleFavorite([FromBody] CreateFavoriteProductDto dto)
         {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { getAllWhoWeAreDetailsAPI, createWhoWeAreDetailAPI, updateWhoWeAreDetailAPI, deleteWhoWeAreDetailAPI } from '../../../../services/whoWeAreService';
 import { FiPlus, FiEdit2, FiTrash2, FiX } from 'react-icons/fi';
 
@@ -74,7 +75,7 @@ export default function WhoWeArePage() {
       await fetchWhoWeAre();
       closeModal();
     } catch (error: any) {
-      alert("İşlem başarısız: " + (error.response?.data || error.message));
+      toast.error("İşlem başarısız: " + (error.response?.data || error.message));
     } finally {
       setIsSubmitting(false);
     }
@@ -86,7 +87,7 @@ export default function WhoWeArePage() {
         await deleteWhoWeAreDetailAPI(id);
         setWhoWeAre(prev => prev.filter(w => w.whoWeAreDetailId !== id));
       } catch (error) {
-        alert("Silme işlemi başarısız oldu.");
+        toast.error("Silme işlemi başarısız oldu.");
       }
     }
   };

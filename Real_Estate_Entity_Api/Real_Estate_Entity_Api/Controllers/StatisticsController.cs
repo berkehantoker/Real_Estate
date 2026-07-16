@@ -31,5 +31,16 @@ namespace Real_Estate_Entity_Api.Controllers
                 TotalUsers = await _service.TotalUserCountAsync()
             });
         }
+
+        [HttpGet("public")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetPublicStatistics()
+        {
+            return Ok(new
+            {
+                activeProducts = await _service.ActiveProductCountAsync(),
+                totalUsers = await _service.TotalUserCountAsync()
+            });
+        }
     }
 }

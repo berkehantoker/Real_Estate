@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getAllProductsWithDetailsAPI, deleteProductAPI } from '../../../../services/productService';
 import { FiTrash2, FiExternalLink, FiBox, FiSearch, FiMapPin, FiChevronLeft, FiChevronRight, FiCheckCircle, FiClock, FiUser } from 'react-icons/fi';
+import toast from 'react-hot-toast';
 
 interface Product {
   productId: number;
@@ -53,7 +54,7 @@ export default function AllProductsPage() {
         await deleteProductAPI(id);
         setProducts(prev => prev.filter(p => p.productId !== id));
       } catch (error) {
-        alert("Silme işlemi başarısız oldu.");
+        toast.error("Silme işlemi başarısız oldu.");
       }
     }
   };

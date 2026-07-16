@@ -1,5 +1,10 @@
 import Link from 'next/link';
-import { FiMapPin, FiHome, FiMaximize } from 'react-icons/fi';
+import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/store/useAuthStore';
+import { toggleFavoriteAPI } from '@/services/favoriteService';
+import { FiMapPin, FiHome, FiMaximize, FiHeart } from 'react-icons/fi';
+import { useState } from 'react';
+import toast from 'react-hot-toast';
 
 interface ProductProps {
   productId: number;
@@ -12,9 +17,37 @@ interface ProductProps {
   roomCount?: number;
   size?: number;
   categoryName?: string;
+  isFavorite?: boolean;
+  onFavoriteToggle?: (productId: number) => void;
 }
 
-export default function ProductCard({ product }: { product: ProductProps }) {
+export default function ProductCard({ product, isFavorite = false, onFavoriteToggle }: { product: ProductProps; isFavorite?: boolean; onFavoriteToggle?: (productId: number) => void }) {
+  const { user } = useAuthStore();
+  const [fav, setFav] = useState(isFavorite);
+  const router = useRouter();
+
+  const handleFavoriteClick = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+
+    // Optimistic UI update
+    setFav(!fav);
+
+    try {
+      await toggleFavoriteAPI(product.productId);
+      onFavoriteToggle?.(product.productId);
+    } catch {
+      // Revert on error
+      setFav(fav);
+      toast.error('Favori işlemi başarısız oldu.');
+    }
+  };
+
   return (
     <Link href={`/ilan/${product.productId}`} className="block h-full">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden group flex flex-col h-full">
@@ -44,6 +77,17 @@ export default function ProductCard({ product }: { product: ProductProps }) {
               {product.categoryName}
             </div>
           )}
+
+          {/* Favori Kalp Butonu */}
+          <button
+            onClick={handleFavoriteClick}
+            className="absolute bottom-3 right-3 z-10 p-2 bg-white/80 backdrop-blur-sm rounded-full shadow-md hover:bg-white transition-all active:scale-90"
+            title={fav ? 'Favorilerden Çıkar' : 'Favorilere Ekle'}
+          >
+            <FiHeart 
+              className={`text-lg transition-colors ${fav ? 'text-red-500 fill-red-500' : 'text-gray-400 hover:text-red-400'}`} 
+            />
+          </button>
         </div>
 
         {/* İçerik Alanı */}

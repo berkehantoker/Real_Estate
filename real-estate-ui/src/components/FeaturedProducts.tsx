@@ -2,20 +2,24 @@
 
 import { useEffect, useState } from 'react';
 import { getAllProductsAPI } from '@/services/productService';
+import { getMyFavoriteIdsAPI } from '@/services/favoriteService';
 import ProductCard from './ProductCard';
 
 export default function FeaturedProducts() {
   const [products, setProducts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
 
   useEffect(() => {
-    // Sayfa açıldığında API'den verileri çeken fonksiyon
-   const fetchProducts = async () => {
+    const fetchData = async () => {
       try {
-        const data = await getAllProductsAPI();
+        const [data, ids] = await Promise.all([
+          getAllProductsAPI(4),
+          getMyFavoriteIdsAPI()
+        ]);
+        setFavoriteIds(ids);
         
-       // 🌟 AKILLI KONTROL: Backend veriyi nasıl göndermiş?
         if (Array.isArray(data)) {
           setProducts(data);
         } else if (data && Array.isArray(data.$values)) {
@@ -23,8 +27,6 @@ export default function FeaturedProducts() {
         } else if (data && Array.isArray(data.data)) {
           setProducts(data.data);
         } else if (data && Array.isArray(data.items)) {
-          // 🌟 İŞTE YAKALADIK! Senin API'nin gönderdiği Sayfalama (Pagination) yapısı
-          // Gelen listedeki 'productId' alanlarını, bizim ProductCard'ın beklediği 'id' ismine çeviriyoruz
           const formattedProducts = data.items.map((p: any) => ({
             ...p,
             id: p.productId || p.id 
@@ -42,8 +44,16 @@ export default function FeaturedProducts() {
       }
     };
 
-    fetchProducts();
+    fetchData();
   }, []);
+
+  const handleFavoriteToggle = (productId: number) => {
+    setFavoriteIds(prev => 
+      prev.includes(productId) 
+        ? prev.filter(id => id !== productId) 
+        : [...prev, productId]
+    );
+  };
 
   if (isLoading) {
     return <div className="text-center py-20 text-gray-500 font-medium animate-pulse">İlanlar yükleniyor...</div>;
@@ -54,10 +64,14 @@ export default function FeaturedProducts() {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-12">
-      {/* Gelen her bir ilan (product) için ekrana bir ProductCard basıyoruz */}
-     {products.map((product: any, index: number) => (
-        <ProductCard key={product.productId || product.id || index} product={product} />
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-12">
+      {products.map((product: any, index: number) => (
+        <ProductCard
+          key={product.productId || product.id || index}
+          product={product}
+          isFavorite={favoriteIds.includes(product.productId || product.id)}
+          onFavoriteToggle={handleFavoriteToggle}
+        />
       ))}
       
       {products.length === 0 && (

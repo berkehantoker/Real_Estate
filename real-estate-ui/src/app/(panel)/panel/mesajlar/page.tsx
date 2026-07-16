@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getAllContactsAPI, deleteContactAPI } from '../../../../services/contactService';
 import { FiMail, FiTrash2, FiEye, FiX, FiCalendar, FiCheck, FiSend, FiSearch, FiChevronLeft, FiChevronRight, FiClock, FiUser } from 'react-icons/fi';
+import toast from 'react-hot-toast';
 
 // Senin ResultContactDto sınıfınla birebir aynı TypeScript arayüzü
 interface Contact {
@@ -53,7 +54,7 @@ export default function MessagesPage() {
         setMessages(prev => prev.filter(m => m.contactId !== id));
         if (selectedMessage?.contactId === id) setSelectedMessage(null); 
       } catch (error) {
-        alert("Silme işlemi başarısız oldu.");
+        toast.error("Silme işlemi başarısız oldu.");
       }
     }
   };

@@ -115,7 +115,7 @@ namespace Real_Estate_Entity_Api.Controllers
         }
 
 
-       // 1. KISAYOL: Eski Test İlanlarını Tek Tıkla Temizle
+       //  Eski Test İlanlarını Tek Tıkla Temizle
         [HttpDelete("delete-dummy-products")]
         [Authorize(Roles = "EstateAgent,Admin")]
         public async Task<IActionResult> DeleteDummyProducts()
@@ -131,7 +131,7 @@ namespace Real_Estate_Entity_Api.Controllers
             return Ok($"Tertemiz! Toplam {dummyProducts.Count} adet test ilanı ve tüm ilişkili alt verileri (resimler, detaylar, özellikler) silindi.");
         }
 
-       // 2. KUSURSUZ SEED: 24 Eşsiz İlan + Gerçekçi Harita Koordinatları
+       // 24 Eşsiz İlan + Gerçekçi Harita Koordinatları
         [HttpPost("seed-dummy-products")]
         [Authorize(Roles = "EstateAgent,Admin")]
         public async Task<IActionResult> SeedDummyProducts()

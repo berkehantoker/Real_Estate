@@ -9,6 +9,7 @@ import { getProductWithDetailsAPI, updateProductAPI, uploadImageAPI, updateProdu
 import { FiSave, FiArrowLeft, FiImage, FiMapPin, FiNavigation, FiTrash2, FiPlus } from 'react-icons/fi';
 import Link from 'next/link';
 import { getCities, getDistrictsByCity, getNeighborhoodsByDistrict } from '../../../../../constants/locations';
+import toast from 'react-hot-toast';
 import SearchableDropdown from '../../../../../components/SearchableDropdown';
 import { geocodeAddress } from '../../../../../utils/geocode';
 
@@ -75,7 +76,7 @@ export default function EditProductPage() {
       await deleteProductImageAPI(imageId);
       setExistingImages(prev => prev.filter(img => img.id !== imageId));
     } catch (error) {
-      alert("Resim silinemedi.");
+      toast.error("Resim silinemedi.");
     }
   };
 
@@ -127,7 +128,7 @@ export default function EditProductPage() {
 
       } catch (error) {
         console.error("Veriler çekilirken hata:", error);
-        alert("İlan bilgileri yüklenemedi!");
+        toast.error("İlan bilgileri yüklenemedi!");
       } finally {
         setIsLoading(false);
       }
@@ -245,12 +246,12 @@ export default function EditProductPage() {
         await addProductImagesAPI({ productId: formData.productId, imageUrls: uploadedGalleryUrls });
       }
 
-      alert("İlan başarıyla güncellendi!");
+      toast.success("İlan başarıyla güncellendi!");
       router.push('/panel/ilanlarim');
 
     } catch (error) {
       console.error(error);
-      alert("İlan güncellenirken bir hata oluştu.");
+      toast.error("İlan güncellenirken bir hata oluştu.");
     } finally {
       setIsSubmitting(false);
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { getAllServicesAPI, createServiceAPI, updateServiceAPI, deleteServiceAPI } from '../../../../services/serviceService';
 import { FiPlus, FiEdit2, FiTrash2, FiX, FiCheckCircle, FiXCircle } from 'react-icons/fi';
 
@@ -59,7 +60,7 @@ export default function ServicesPage() {
       await fetchServices();
       closeModal();
     } catch (error: any) {
-      alert("İşlem başarısız: " + (error.response?.data || error.message));
+      toast.error("İşlem başarısız: " + (error.response?.data || error.message));
     } finally {
       setIsSubmitting(false);
     }
@@ -71,7 +72,7 @@ export default function ServicesPage() {
         await deleteServiceAPI(id);
         setServices(prev => prev.filter(s => s.serviceId !== id));
       } catch (error) {
-        alert("Silme işlemi başarısız oldu.");
+        toast.error("Silme işlemi başarısız oldu.");
       }
     }
   };

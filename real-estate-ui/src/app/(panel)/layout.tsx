@@ -1,7 +1,35 @@
+"use client";
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuthStore } from '@/store/useAuthStore';
 import Sidebar from '@/components/Sidebar';
 import NotificationProvider from '@/components/NotificationProvider';
 
 export default function PanelLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const { user } = useAuthStore();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+    if (!user) {
+      router.push('/login');
+    }
+  }, [user, router]);
+
+  // Hydration hatasını ve yetkisiz render'ı önle
+  if (!isMounted || !user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600"></div>
+          <p className="text-gray-500 font-medium">Yönlendiriliyorsunuz...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-gray-50 font-sans">
       <NotificationProvider />
